@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    // Scripts operacionais em scripts/*.ts rodam via `node` (Node 24 faz strip de
+    // tipos nativo), e o Node EXIGE a extensão .ts no import relativo. Legal aqui
+    // porque noEmit=true. Não afeta o bundle: o app importa via alias "@/".
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  // scripts/vps-reconcile roda NA VPS (a API da Hotmart recusa a rede da Vercel).
+  // Importa ./hotmartSync.ts, que o deploy.sh copia de lib/ na publicação — não
+  // existe em repouso aqui de propósito, pra não haver duas cópias divergindo.
+  "exclude": ["node_modules", "scripts/vps-reconcile"]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "dashboard-ab-router",
+  "version": "1.0.0",
+  "description": "Motor de A/B testing — roteamento por variante com cookie UID",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

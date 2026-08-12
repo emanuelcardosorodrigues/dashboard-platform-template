@@ -1,0 +1,25 @@
+# Dependencies and build artifacts
+**/node_modules/
+**/.next/
+**/.wrangler/
+**/coverage/
+**/*.tsbuildinfo
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+**/.dev.vars
+**/.dev.vars.*
+!**/.dev.vars.example
+*.pem
+*.pfx
+*.key
+*.crt
+*.secret
+
+# Deployment and editor state
+.vercel/
+.DS_Store
+*.log
+.quarantine/

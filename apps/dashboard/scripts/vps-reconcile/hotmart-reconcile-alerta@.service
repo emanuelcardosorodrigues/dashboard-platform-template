@@ -1,0 +1,7 @@
+[Unit]
+Description=Alerta Telegram de falha/reparo de %i
+
+[Service]
+Type=oneshot
+LoadCredentialEncrypted=telegram_bot_token:/etc/credstore.encrypted/evo-sentinel.telegram_bot_token.cred
+ExecStart=/opt/hotmart-reconcile/alerta.sh %i

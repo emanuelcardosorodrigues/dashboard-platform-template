@@ -1,0 +1,19 @@
+# Dependências
+node_modules/
+
+# Estado/cache do Wrangler
+.wrangler/
+
+# Segredos — NUNCA commitar
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+*.secret
+
+# Backups locais (versões antigas/abandonadas — ficam só na máquina)
+*.bak
+
+# SO / editor
+.DS_Store
+*.log

@@ -1,0 +1,24 @@
+# ── Worker LOW TICKET — janela curta (3 min) ──
+# Mesmo worker.js do VSL; só muda nome, janela e bindings (KV/D1 próprios).
+# Deploy:  wrangler deploy --config wrangler.lowticket.toml
+name = "hotmart-consolidator-lowticket"
+main = "worker.js"
+compatibility_date = "2026-03-18"
+preview_urls = false
+
+[vars]
+WINDOW_MS = "180000"   # 3 min
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hotmart-consolidator-lowticket-db"
+database_id = "SEU_D1_DATABASE_ID"
+
+[triggers]
+crons = ["* * * * *", "0 3 * * *"]
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true

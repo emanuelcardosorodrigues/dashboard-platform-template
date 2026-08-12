@@ -1,0 +1,23 @@
+# ── Worker VSL — janela longa (20 min), config padrão ──
+# Mesmo worker.js do low ticket. Deploy:  wrangler deploy
+name = "hotmart-consolidator"
+main = "worker.js"
+compatibility_date = "2026-03-18"
+preview_urls = false
+
+[vars]
+WINDOW_MS = "1200000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hotmart-consolidator-db"
+database_id = "SEU_D1_DATABASE_ID"
+
+[triggers]
+crons = ["* * * * *", "0 3 * * *"]
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true

@@ -1,0 +1,154 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base: #0A0F1E;
+  --color-surface: #111827;
+  --color-border: #1F2937;
+  --color-text-primary: #F9FAFB;
+  --color-text-secondary: #9CA3AF;
+  --color-text-tertiary: #6B7280;
+  --color-accent: #06B6D4;
+  --color-brand-blue: #06B6D4;
+  --color-brand-teal: #14B8A6;
+  --color-green: #10B981;
+  --color-red: #F43F5E;
+  --color-yellow: #F59E0B;
+  --color-dark: #F9FAFB;
+
+  --font-heading: "Bricolage Grotesque", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   F0.2 — Tokens de toque + altura do bottom-nav  (plano mobile v2, Onda 1)
+
+   Regra de ouro deste bloco: TUDO colapsa no desktop. `--bottom-nav-h` vira 0px
+   em md+, então qualquer `calc(var(--bottom-nav-offset) + …)` devolve exatamente
+   o valor que a página já tinha antes. Nenhum item mobile vaza pro desktop.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Altura VISÍVEL do MobileBottomNav (borda inclusa, safe-area NÃO).
+     É var e não constante de propósito: A3 (Onda 2) zera isto quando a barra
+     minimizar no scroll-down, e todo `fixed bottom-*` acompanha sozinho. */
+  --bottom-nav-h: 56px;
+  /* Espaço total reservado na borda inferior = barra + inset do iPhone/PWA.
+     Em PWA standalone o inset de baixo PERMANECE mesmo sem o indicador. */
+  --bottom-nav-offset: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+
+  /* Pisos de alvo por REGIÃO — a precisão do dedo cai perto da borda inferior
+     (~46px na base contra ~27px no miolo), então não existe "44px uniforme". */
+  --tap-edge: 48px;
+  --tap-body: 44px;
+}
+
+/* Desktop: não existe bottom-nav. O token some e os calc() se anulam. */
+@media (min-width: 768px) {
+  :root { --bottom-nav-h: 0px; }
+}
+
+/* Alvos de toque. São opt-in: aplique SÓ em componentes mobile (md:hidden),
+   nunca em algo que o desktop enxerga — senão muda o desktop. */
+.tap-target--edge { min-height: var(--tap-edge); min-width: var(--tap-edge); }
+.tap-target--body { min-height: var(--tap-body); min-width: var(--tap-body); }
+
+/* Reserva do rodapé pra qualquer container rolável (0 no desktop). */
+.pb-bottom-nav { padding-bottom: var(--bottom-nav-offset); }
+
+/* Para `fixed bottom-*`: sobe o elemento pra ACIMA do bottom-nav no celular.
+   Fora do mobile a regra nem existe → o `bottom-4`/`bottom-6` original manda.
+   Ajuste a folga por elemento com `--above-nav-gap`. */
+@media (max-width: 767.98px) {
+  .above-bottom-nav { bottom: calc(var(--bottom-nav-offset) + var(--above-nav-gap, 1rem)); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E7 — Viewport estável no iOS (só mobile)
+
+   No Safari iOS `100vh` é o viewport GRANDE (barra de endereço escondida). O
+   overlay nasce mais alto que a tela e "pula" quando a barra reaparece; com o
+   teclado aberto o Safari nem redimensiona o layout viewport — ele rola a
+   página e quebra `position: fixed`. `svh` (small viewport height) é o único
+   valor estável; `dvh` fica "debouçando" durante o scroll.
+
+   A lista de classes abaixo é FECHADA: são exatamente os valores `vh` que
+   existem hoje nos overlays/sheets do app (`grep -o '\(max-h\|min-h\)-\[Nvh\]'`).
+   Reescrever aqui converte os ~18 overlays sem tocar em nenhum componente.
+   Ao criar overlay novo, prefira `svh` direto no Tailwind (`max-h-[90svh]`).
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767.98px) {
+  .h-screen      { height: 100svh; }
+  .min-h-screen  { min-height: 100svh; }
+  .max-h-screen  { max-height: 100svh; }
+
+  .max-h-\[50vh\] { max-height: 50svh; }
+  .max-h-\[55vh\] { max-height: 55svh; }
+  .max-h-\[60vh\] { max-height: 60svh; }
+  .max-h-\[80vh\] { max-height: 80svh; }
+  .max-h-\[85vh\] { max-height: 85svh; }
+  .max-h-\[90vh\] { max-height: 90svh; }
+  .max-h-\[92vh\] { max-height: 92svh; }
+  .min-h-\[60vh\] { min-height: 60svh; }
+}
+
+/* Aliases dark do redesign light — usados por componentes (/vsl etc) */
+.glass-panel {
+  background-color: #111827;
+  border: 1px solid #1F2937;
+}
+.elevated-card {
+  background-color: #111827;
+  border: 1px solid #1F2937;
+}
+.glass-pill {
+  background-color: #1F2937;
+  border: 1px solid #374151;
+  color: #F9FAFB;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  /* Popups nativos (select, date picker, scrollbar) seguem o tema escuro. */
+  color-scheme: dark;
+}
+
+body {
+  background-color: #0A0F1E;
+  color: #F9FAFB;
+  font-family: "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Bricolage Grotesque", sans-serif;
+}
+
+/* Reduced motion — respect system preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+::-webkit-scrollbar-thumb {
+  background: #1F2937;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}

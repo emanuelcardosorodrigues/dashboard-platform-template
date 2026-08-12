@@ -1,0 +1,43 @@
+{
+	"name": "dashboard-nfse",
+	"main": "src/index.js",
+	"compatibility_date": "2026-04-30",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "nfse-db",
+			"database_id": "SEU_D1_DATABASE_ID"
+		}
+	],
+	"vars": {
+		"ENVIRONMENT": "production"
+	},
+	"routes": [
+		{ "pattern": "nf.example.com", "custom_domain": true }
+	],
+	"env": {
+		"staging": {
+			"name": "dashboard-nfse-staging",
+			// IMPORTANTE: routes/workers_dev EXPLÍCITOS — sem isso o wrangler herda
+			// routes do top-level e o deploy do staging rouba o custom domain de
+			// produção. Aprendido na marra em 2026-05-13 (post-mortem 0002).
+			"workers_dev": true,
+			"routes": [],
+			"vars": {
+				"ENVIRONMENT": "staging"
+			},
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "nfse-db-staging",
+					"database_id": "SEU_D1_DATABASE_ID"
+				}
+			]
+		}
+	}
+}

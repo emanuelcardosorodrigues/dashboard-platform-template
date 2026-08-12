@@ -1,0 +1,11 @@
+{
+  "name": "dashboard-platform-template",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "npm ci --prefix apps/dashboard && npm ci --prefix workers/ab-router && npm ci --prefix workers/quiz && npm ci --prefix workers/nfse",
+    "test": "npm run test:run --prefix apps/dashboard && npm test --prefix workers/ab-router && npm test --prefix workers/nfse",
+    "security:scan": "node scripts/security-scan.mjs",
+    "check": "npm run test && npm run security:scan"
+  }
+}

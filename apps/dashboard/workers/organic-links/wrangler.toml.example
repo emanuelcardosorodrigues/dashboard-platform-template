@@ -1,0 +1,22 @@
+# Encurtador orgânico — 1 Worker POR CLIENTE, na conta Cloudflare DELE.
+# Copie para wrangler.toml, preencha e rode `wrangler deploy` logado na conta certa.
+name = "w-organic-links-CLIENTE"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+# Rota no domínio do cliente — NÃO usar workers.dev em produção.
+# Ex. Cliente: example.com/* exceto caminhos já usados (/p/*, /r/*, /q/*).
+routes = [
+  { pattern = "exemplo.com.br/l/*", zone_name = "exemplo.com.br" },
+]
+
+kv_namespaces = [
+  { binding = "LINKS", id = "COLE_O_NAMESPACE_ID" },
+]
+
+[vars]
+WS = "COLE_O_WORKSPACE_UUID"
+HIT_URL = "https://dashboard.example.com/api/webhook/link-hit"
+
+# Formato do valor no KV (chave = slug):
+#   {"dest":"https://pagina-de-destino.com.br/oferta","platform":"instagram","post":"MEDIA_EXTERNAL_ID"}

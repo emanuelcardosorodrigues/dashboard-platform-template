@@ -1,0 +1,8 @@
+# Pré-commit local: bloqueia segredo antes de virar commit.
+# Instalar uma vez:  pipx install pre-commit && pre-commit install
+# (usa a config em .gitleaks.toml)
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks

@@ -1,0 +1,77 @@
+{
+  "regions": ["gru1"],
+  "crons": [
+    {
+      "path": "/api/cron/sync-meta",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/sync-vturb-creatives?days=3",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/sync-meta?days=90",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/backfill-creatives",
+      "schedule": "35 9 * * *"
+    },
+    {
+      "path": "/api/cron/sync-clarity",
+      "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-comments",
+      "schedule": "45 9 * * *"
+    },
+    {
+      "path": "/api/cron/analyze-criativos",
+      "schedule": "20 10 * * *"
+    },
+    {
+      "path": "/api/cron/ltv-backfill",
+      "schedule": "40 10 * * *"
+    },
+    {
+      "path": "/api/cron/quarantine-bots",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/score-bots",
+      "schedule": "5 10 * * *"
+    },
+    {
+      "path": "/api/cron/bandit-update",
+      "schedule": "30 10 * * *"
+    },
+    {
+      "path": "/api/cron/generate-ai-insights",
+      "schedule": "15 10 * * *"
+    },
+    {
+      "path": "/api/cron/data-retention",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/criativos/biblioteca/sync",
+      "schedule": "55 9 * * *"
+    },
+    {
+      "path": "/api/cron/analyze-nao-rodaram",
+      "schedule": "50 10 * * *"
+    },
+    {
+      "path": "/api/cron/push-resumo",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/health-freshness",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/push-fadiga",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Quiz</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0f172a; color: #e2e8f0; font: 16px system-ui, sans-serif; }
+      main { max-width: 560px; padding: 32px; border-radius: 16px; background: #1e293b; text-align: center; box-shadow: 0 20px 50px #0005; }
+      h1 { margin-top: 0; } code { color: #93c5fd; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Quiz configurável</h1>
+      <p>Configure as perguntas, mensagens e destino no painel do dashboard.</p>
+      <p id="status">Carregando configuração…</p>
+    </main>
+    <script>
+      const config = window.__QUIZ_CONFIG__;
+      document.getElementById('status').textContent = config?.found
+        ? `Quiz ${config.slug} carregado. Personalize este tema para a sua marca.`
+        : 'Nenhuma configuração foi encontrada para este slug.';
+    </script>
+  </body>
+</html>

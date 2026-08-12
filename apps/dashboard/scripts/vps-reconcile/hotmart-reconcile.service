@@ -1,0 +1,31 @@
+[Unit]
+Description=Reconciliacao Hotmart -> Supabase (rede de seguranca do webhook)
+Documentation=Consulte a documentação operacional deste repositório
+After=network-online.target
+Wants=network-online.target
+
+# %N (nao %n): %n inclui o sufixo .service e duplicaria em .service.service,
+# fazendo o alerta sumir calado.
+OnFailure=hotmart-reconcile-alerta@%N.service
+
+[Service]
+Type=oneshot
+User=hotmartrec
+Group=hotmartrec
+WorkingDirectory=/opt/hotmart-reconcile
+Environment=NODE_ENV=production
+Environment=TZ=America/Sao_Paulo
+Environment=DEFAULT_WORKSPACE_SLUG=demo
+LoadCredentialEncrypted=supabase_url:/etc/credstore.encrypted/hotmart-reconcile.supabase_url.cred
+LoadCredentialEncrypted=supabase_service_role_key:/etc/credstore.encrypted/hotmart-reconcile.supabase_service_role_key.cred
+LoadCredentialEncrypted=hotmart_client_id:/etc/credstore.encrypted/hotmart-reconcile.hotmart_client_id.cred
+LoadCredentialEncrypted=hotmart_client_secret:/etc/credstore.encrypted/hotmart-reconcile.hotmart_client_secret.cred
+ExecStart=/usr/local/bin/node /opt/hotmart-reconcile/reconcile.ts --days 3
+# exit 3 = reparou venda (incidente do webhook). Nao e falha de infra, mas
+# PRECISA alertar — por isso nao entra em SuccessExitStatus.
+TimeoutStartSec=600
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/hotmart-reconcile

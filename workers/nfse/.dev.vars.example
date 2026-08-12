@@ -1,0 +1,37 @@
+# Variáveis de ambiente locais para desenvolvimento
+# Copie este arquivo para .dev.vars e preencha os valores reais.
+# NUNCA commite .dev.vars — ele está no .gitignore.
+
+# Credenciais do painel /admin
+ADMIN_USER=admin
+ADMIN_PASSWORD=  # senha forte (mínimo 16 chars)
+
+# Token para chamadas autenticadas à /api/*
+API_KEY=  # string aleatória longa (ex.: openssl rand -hex 32)
+
+# Token de verificação de webhook enviado pela Hotmart no header X-Hotmart-Hottok
+HOTMART_TOKEN=  # valor do campo "Hottok" no app Hotmart > Webhooks
+
+# Segredo para assinar cookies de sessão admin (HMAC-SHA256)
+# Gerar com: openssl rand -hex 32
+COOKIE_HMAC_SECRET=
+
+# Certificado digital A1 da prefeitura (formato PEM)
+# Cole o conteúdo do arquivo .pem substituindo quebras de linha reais por \n
+# Exemplo: -----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----
+CERT_PRIVATE_KEY=
+
+# Certificado público A1 (usado para validação de assinatura XML)
+CERT_PUBLIC=
+
+# Service Account do Google (para upload no Drive)
+GOOGLE_CLIENT_EMAIL=  # ex.: nfse-worker@projeto.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY=   # PEM da service account com \n literais (igual ao CERT_PRIVATE_KEY)
+
+# ID da pasta raiz no Google Drive onde os XMLs são salvos
+# Obter na URL da pasta: drive.google.com/drive/folders/<ID>
+GOOGLE_DRIVE_ROOT_FOLDER=
+
+# Resend — serviço de envio de email
+RESEND_API_KEY=  # gerar em resend.com/api-keys (rotacionar — versão antiga foi exposta)
+EMAIL_REMETENTE= # email com domínio verificado no Resend (ex.: notas@seudominio.com)

@@ -1,0 +1,11 @@
+[Unit]
+Description=Reconciliacao Hotmart — passada profunda diaria (30 dias)
+
+[Timer]
+OnCalendar=*-*-* 05:40:00 America/Sao_Paulo
+Persistent=true
+RandomizedDelaySec=300
+Unit=hotmart-reconcile-deep.service
+
+[Install]
+WantedBy=timers.target

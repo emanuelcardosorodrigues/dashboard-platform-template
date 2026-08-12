@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dashboard-quiz",
+  "main": "src/index.js",
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "routes": [
+    { "pattern": "example.com/q/*", "zone_name": "example.com" }
+  ],
+
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "kv_namespaces": [
+    { "binding": "QUIZ_KV", "id": "SEU_KV_NAMESPACE_ID" }
+  ],
+
+  "d1_databases": [
+    {
+      "binding": "QUIZ_DB",
+      "database_name": "quiz-db",
+      "database_id": "SEU_D1_DATABASE_ID"
+    }
+  ],
+
+  "vars": {
+    "WP_DOMAIN": "example.com",
+    "ENV": "production"
+  },
+
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

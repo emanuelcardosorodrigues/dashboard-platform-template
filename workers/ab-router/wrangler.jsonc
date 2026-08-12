@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dashboard-ab-router",
+  "compatibility_date": "2026-04-23",
+  "main": "src/index.js",
+
+  // IMPRESSION_MODE controla ONDE a impressão de página é contada:
+  //   "redirect" (default) — loga no 302, no momento do redirect (conta cliques roteados)
+  //   "beacon"             — loga no beacon /i, no carregamento REAL da página
+  //                          (alinha "Visualizações" com landing page views do Meta)
+  // Só vire pra "beacon" DEPOIS que a tag GTM do beacon estiver no ar em todas as
+  // variantes — senão as impressões zeram. Reverter = voltar pra "redirect" + deploy.
+  "vars": {
+    "IMPRESSION_MODE": "beacon"
+  },
+
+  // Rota same-domain: elimina round-trip cross-domain no redirect.
+  // URL dos anúncios: example.com/r/col/
+  // Requer example.com como zona Cloudflare (orange-cloud).
+  // Substitua example.com pelo seu domínio real antes de fazer deploy.
+  "routes": [
+    {
+      "pattern": "example.com/r/*",
+      "zone_name": "example.com"
+    }
+  ]
+
+  ,
+  "kv_namespaces": [
+    { "binding": "AB_KV", "id": "SEU_KV_NAMESPACE_ID" }
+  ]
+
+  // D1 — redundância de borda para fallback_url quando o Supabase cair.
+  ,
+  "d1_databases": [
+    { "binding": "DB", "database_name": "ab-test-db", "database_id": "SEU_D1_DATABASE_ID" }
+  ]
+
+  // EMERGENCY_URL — set via: npx wrangler secret put EMERGENCY_URL
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Reconciliacao Hotmart — a cada 2h (rede de seguranca do webhook)
+
+[Timer]
+OnCalendar=*-*-* 00/2:17:00 America/Sao_Paulo
+Persistent=true
+RandomizedDelaySec=180
+Unit=hotmart-reconcile.service
+
+[Install]
+WantedBy=timers.target
