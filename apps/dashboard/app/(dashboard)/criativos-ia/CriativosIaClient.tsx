@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Search, Sparkles, X, SlidersHorizontal, Star, Plus, Pencil, Trash2, ChevronDown, ArrowUpDown } from 'lucide-react'
@@ -28,13 +28,12 @@ const HistoryPerformanceTab = dynamic(() => import('./tabs/HistoryPerformanceTab
   loading: () => <div className="py-16 text-center text-sm text-text-secondary">Carregando histórico…</div>,
 })
 
-export type CreativeAnalysisTab = 'cards' | 'history' | 'creatives' | 'insights'
-export type CreativeAnalysisLegacyTabs = Partial<Record<Extract<CreativeAnalysisTab, 'creatives' | 'insights'>, ReactNode>>
+export type CreativeAnalysisTab = 'cards' | 'historico' | 'criativos' | 'insights'
 
 const SUB_TABS: Array<{ id: CreativeAnalysisTab; label: string }> = [
   { id: 'cards', label: 'Criativos em Cards' },
-  { id: 'history', label: 'Histórico de Performance' },
-  { id: 'creatives', label: 'Criativos' },
+  { id: 'historico', label: 'Histórico de Performance' },
+  { id: 'criativos', label: 'Criativos' },
   { id: 'insights', label: 'Insights IA' },
 ]
 
@@ -103,7 +102,7 @@ function readLocalGrupos(): Grupo[] {
   return []
 }
 
-export default function CriativosIaClient({ initial, legacyTabs }: { initial: Card[]; legacyTabs?: CreativeAnalysisLegacyTabs }) {
+export default function CriativosIaClient({ initial, hideTabs = false }: { initial: Card[]; hideTabs?: boolean }) {
   // Filtros globais (Header/URL) — usados só pra passar ao PadroesCampeoes.
   const sp = useSearchParams()
   const router = useRouter()
@@ -597,7 +596,7 @@ export default function CriativosIaClient({ initial, legacyTabs }: { initial: Ca
 
   return (
     <div className="space-y-4">
-      <nav aria-label="Seções da Análise de Criativos" className="flex gap-1 overflow-x-auto border-b border-border">
+      {!hideTabs && <nav aria-label="Seções da Análise de Criativos" className="flex gap-1 overflow-x-auto border-b border-border">
         {SUB_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -609,7 +608,7 @@ export default function CriativosIaClient({ initial, legacyTabs }: { initial: Ca
             {tab.label}
           </button>
         ))}
-      </nav>
+      </nav>}
 
       {/* Header do container */}
       {activeTab === 'cards' && <div className="flex items-center justify-between gap-3">
@@ -628,7 +627,7 @@ export default function CriativosIaClient({ initial, legacyTabs }: { initial: Ca
           `isMobile` é false no SSR e em md+, então este ramo é o que o desktop
           sempre viu: abas de grupo, depois a toolbar (busca + Ordenar + Métricas
           + Tags), depois os filtros avançados — mesma ordem, mesmas classes. */}
-      {(activeTab === 'cards' || activeTab === 'history') && !isMobile && (
+      {(activeTab === 'cards' || activeTab === 'historico') && !isMobile && (
         <>
           {renderGruposTabs()}
 
@@ -649,7 +648,7 @@ export default function CriativosIaClient({ initial, legacyTabs }: { initial: Ca
           B3: a "parede de controles" (abas de grupo + Ordenar + Métricas + Tags +
           FilterBar) colapsa atrás de um botão que resume o estado ativo. Accordion
           INLINE (sem sheet novo — o coordenador cuida do sheet global). */}
-      {(activeTab === 'cards' || activeTab === 'history') && isMobile && (
+      {(activeTab === 'cards' || activeTab === 'historico') && isMobile && (
         <>
           {searchBox('w-full')}
 
@@ -759,12 +758,8 @@ export default function CriativosIaClient({ initial, legacyTabs }: { initial: Ca
       )}
       </>}
 
-      {activeTab === 'history' && (
+      {activeTab === 'historico' && (
         <HistoryPerformanceTab de={de} ate={ate} funil={funil} conta={conta} adIds={visibleAdRefs} />
-      )}
-
-      {(activeTab === 'creatives' || activeTab === 'insights') && (
-        legacyTabs?.[activeTab] ?? <LegacyTabPlaceholder tab={activeTab} />
       )}
 
       {/* Modal criar/editar grupo de análise */}
