@@ -23,7 +23,7 @@ type MetricKey = (typeof PERFORMANCE_HISTORY_METRICS)[number]['key']
 type ValueFormat = (typeof PERFORMANCE_HISTORY_METRICS)[number]['format']
 
 /**
- * Contrato da rota GET /api/criativos/historico. O ranking é feito no servidor;
+ * Contrato da rota POST /api/criativos/historico. O ranking é feito no servidor;
  * a UI apenas desenha as séries que a rota devolve para cada métrica.
  */
 export type PerformanceHistoryResponse = {
@@ -66,9 +66,13 @@ function dateLabel(value: string) {
 function MetricChart({
   metric,
   series,
+  top,
+  onTopChange,
 }: {
   metric: (typeof PERFORMANCE_HISTORY_METRICS)[number]
   series: NonNullable<PerformanceHistoryResponse['metrics'][MetricKey]>['series']
+  top: number
+  onTopChange: (top: number) => void
 }) {
   const data = useMemo(() => {
     const byDay = new Map<string, Record<string, string | number | null>>()
@@ -85,7 +89,10 @@ function MetricChart({
   if (series.length === 0 || data.length === 0) {
     return (
       <section className="rounded-lg border border-border bg-surface p-4">
-        <h3 className="text-sm font-semibold text-text-primary">{metric.label}</h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-text-primary">{metric.label}</h3>
+          <TopSelect metric={metric.label} top={top} onChange={onTopChange} />
+        </div>
         <p className="py-16 text-center text-sm text-text-secondary">Sem dados suficientes para esta métrica no período.</p>
       </section>
     )
@@ -93,7 +100,10 @@ function MetricChart({
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4">
-      <h3 className="mb-3 text-sm font-semibold text-text-primary">{metric.label}</h3>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-text-primary">{metric.label}</h3>
+        <TopSelect metric={metric.label} top={top} onChange={onTopChange} />
+      </div>
       <div className="h-72 w-full" role="img" aria-label={`Série temporal de ${metric.label}`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
@@ -144,8 +154,29 @@ function MetricChart({
   )
 }
 
+function TopSelect({ metric, top, onChange }: { metric: string; top: number; onChange: (top: number) => void }) {
+  return (
+    <label className="flex shrink-0 items-center gap-1.5 text-xs text-text-secondary">
+      Top
+      <select
+        value={top}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="rounded-md border border-border bg-bg-base px-1.5 py-1 text-xs text-text-primary outline-none focus:border-purple-400"
+        aria-label={`Quantidade de melhores criativos para ${metric}`}
+      >
+        {TOP_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    </label>
+  )
+}
+
 export default function HistoryPerformanceTab({ de, ate, funil, conta, adIds }: Props) {
-  const [top, setTop] = useState(5)
+  const [topByMetric, setTopByMetric] = useState<Record<MetricKey, number>>({
+    hook_rate: 5,
+    conv_body: 5,
+    cpc_link: 5,
+    hold_rate: 5,
+  })
   const [response, setResponse] = useState<PerformanceHistoryResponse | null>(null)
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
 
@@ -159,10 +190,14 @@ export default function HistoryPerformanceTab({ de, ate, funil, conta, adIds }: 
     }
 
     const controller = new AbortController()
-    const params = new URLSearchParams({ de, ate, funil, conta, adIds: idsKey, top: String(top) })
     setState('loading')
     setResponse(null)
-    fetch(`/api/criativos/historico?${params}`, { signal: controller.signal })
+    fetch('/api/criativos/historico', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ de, ate, funil, conta, adIds: idsKey.split(','), topByMetric }),
+      signal: controller.signal,
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error(`histórico ${res.status}`)
         return res.json() as Promise<PerformanceHistoryResponse>
@@ -177,27 +212,15 @@ export default function HistoryPerformanceTab({ de, ate, funil, conta, adIds }: 
         if (!controller.signal.aborted) setState('error')
       })
     return () => controller.abort()
-  }, [de, ate, funil, conta, idsKey, top])
+  }, [de, ate, funil, conta, idsKey, topByMetric])
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
         <div>
           <h2 className="text-sm font-semibold text-text-primary">Histórico de Performance</h2>
           <p className="mt-0.5 text-xs text-text-secondary">Evolução diária dos criativos que passam pelos filtros atuais.</p>
         </div>
-        <label className="flex items-center gap-2 text-xs text-text-secondary">
-          Top
-          <select
-            value={top}
-            onChange={(event) => setTop(Number(event.target.value))}
-            className="rounded-md border border-border bg-bg-base px-2 py-1.5 text-sm text-text-primary outline-none focus:border-purple-400"
-            aria-label="Quantidade de melhores criativos por métrica"
-          >
-            {TOP_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-          <span>por métrica</span>
-        </label>
       </div>
 
       {!idsKey && <p className="py-16 text-center text-sm text-text-secondary">Nenhum criativo passa pelos filtros atuais.</p>}
@@ -206,7 +229,13 @@ export default function HistoryPerformanceTab({ de, ate, funil, conta, adIds }: 
       {state === 'idle' && response && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {PERFORMANCE_HISTORY_METRICS.map((metric) => (
-            <MetricChart key={metric.key} metric={metric} series={response.metrics[metric.key]?.series ?? []} />
+            <MetricChart
+              key={metric.key}
+              metric={metric}
+              series={response.metrics[metric.key]?.series ?? []}
+              top={topByMetric[metric.key]}
+              onTopChange={(top) => setTopByMetric((current) => ({ ...current, [metric.key]: top }))}
+            />
           ))}
         </div>
       )}
