@@ -101,7 +101,12 @@ export async function proxy(req: NextRequest) {
   }
 
   if (pathname.startsWith('/api/')) {
-    const allowed = VIEWER_ALLOWED_API_PREFIXES.some(p => pathname.startsWith(p))
+    // Histórico aceita payload de IDs potencialmente grande; é POST para não
+    // vazar o recorte completo pela URL/logs. A exceção é exata (não libera
+    // subrotas) e replica a permissão da sub-aba no handler como defesa extra.
+    const allowed = pathname === '/api/criativos/historico'
+      ? req.method === 'POST' && isCreativeAnalysisTabAllowed(session.allowed_paths, 'historico')
+      : VIEWER_ALLOWED_API_PREFIXES.some(p => pathname.startsWith(p))
     if (!allowed) return new NextResponse('Forbidden', { status: 403 })
     return maybeRenew(NextResponse.next(), session)
   }

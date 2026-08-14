@@ -37,7 +37,8 @@ export interface PerformanceTransactionRow {
 export interface PerformanceHistoryOptions {
   /** Dias de calendário do período. Sem eles, usa os dias que possuem Meta. */
   days?: readonly string[]
-  top: number
+  /** Cada gráfico pode ter um Top X próprio. */
+  topByMetric: Record<PerformanceHistoryMetric, number>
 }
 
 export interface PerformancePoint {
@@ -171,7 +172,7 @@ function orderedDays(rows: readonly PerformanceMetaRow[], supplied: readonly str
 export function buildCreativePerformanceHistory(
   metaRows: readonly PerformanceMetaRow[],
   transactionRows: readonly PerformanceTransactionRow[],
-  { days: requestedDays, top }: PerformanceHistoryOptions,
+  { days: requestedDays, topByMetric }: PerformanceHistoryOptions,
 ): CreativePerformanceHistory {
   const creatives = new Map<string, CreativeAggregate>()
   const adIdToCreative = new Map<string, string>()
@@ -207,7 +208,6 @@ export function buildCreativePerformanceHistory(
   }
 
   const days = orderedDays(metaRows, requestedDays)
-  const limit = Math.max(1, Math.floor(top))
   const representativeAdId = (creative: CreativeAggregate): string => {
     let result = creative.name
     let bestInvestment = -Infinity
@@ -230,7 +230,7 @@ export function buildCreativePerformanceHistory(
         if (volumeOrder !== 0) return volumeOrder
         return a.creative.name.localeCompare(b.creative.name, 'pt-BR')
       })
-      .slice(0, limit)
+      .slice(0, Math.max(1, Math.floor(topByMetric[metric])))
 
     return {
       series: ranked.map(({ creative }) => ({
