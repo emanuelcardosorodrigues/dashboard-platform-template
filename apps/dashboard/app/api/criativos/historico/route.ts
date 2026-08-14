@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { requireActiveWorkspaceAuth } from '@/lib/apiAuth'
+import { isCreativeAnalysisTabAllowed } from '@/lib/auth'
 import {
   fetchFunisConfig,
   fetchMetaAds,
@@ -9,7 +10,11 @@ import {
   filterByFunil,
   filterTransacoesByFunil,
 } from '@/lib/supabase'
-import { buildCreativePerformanceHistory } from '@/lib/creativePerformanceHistory'
+import {
+  buildCreativePerformanceHistory,
+  PERFORMANCE_HISTORY_METRICS,
+  type PerformanceHistoryMetric,
+} from '@/lib/creativePerformanceHistory'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,18 +30,34 @@ function validDate(value: string): boolean {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
-function parseTop(raw: string | null): number | null {
-  if (raw == null || raw === '') return 10
-  if (!/^\d+$/.test(raw)) return null
-  const top = Number(raw)
-  return Number.isSafeInteger(top) && top >= 1 && top <= MAX_TOP ? top : null
+function parseAdIds(raw: unknown): string[] | null {
+  if (raw == null) return []
+  if (!Array.isArray(raw)) return null
+  const values = [...new Set(raw.map((value) => typeof value === 'string' ? value.trim() : ''))]
+  if (values.some((value) => !AD_ID.test(value)) || values.length > MAX_AD_IDS) return null
+  return values
 }
 
-function parseAdIds(raw: string | null): string[] | null {
-  if (!raw) return []
-  const values = [...new Set(raw.split(',').map((value) => value.trim()).filter(Boolean))]
-  if (values.length > MAX_AD_IDS || values.some((value) => !AD_ID.test(value))) return null
-  return values
+function parseTopByMetric(raw: unknown): Record<PerformanceHistoryMetric, number> | null {
+  if (raw == null) return { hook_rate: 10, conv_body: 10, cpc_link: 10, hold_rate: 10 }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const input = raw as Record<string, unknown>
+  const validKeys = new Set<string>(PERFORMANCE_HISTORY_METRICS)
+  if (Object.keys(input).some((key) => !validKeys.has(key))) return null
+  const result = {} as Record<PerformanceHistoryMetric, number>
+  for (const metric of PERFORMANCE_HISTORY_METRICS) {
+    const value = input[metric]
+    if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > MAX_TOP) return null
+    result[metric] = value as number
+  }
+  return result
+}
+
+function optionalFilter(input: Record<string, unknown>, key: string, fallback: string, maxLength: number): string | null {
+  const value = input[key]
+  if (value == null) return fallback
+  if (typeof value !== 'string' || value.length > maxLength) return null
+  return value
 }
 
 function calendarDays(from: string, to: string): string[] | null | undefined {
@@ -53,38 +74,46 @@ function calendarDays(from: string, to: string): string[] | null | undefined {
 }
 
 /**
- * GET /api/criativos/historico?de=&ate=&funil=&conta=&adIds=a,b&top=10
+ * POST /api/criativos/historico
+ * body: { de, ate, funil, conta, adIds: string[], topByMetric: { ... } }
  *
  * A query não recebe workspace do cliente: o tenant vem exclusivamente da sessão
  * e do workspace ativo autorizado. A resposta expõe somente nomes de criativos e
  * métricas agregadas, nunca linhas de transação nem dados de comprador.
  */
-export async function GET(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const auth = await requireActiveWorkspaceAuth()
   if ('error' in auth) return auth.error
+  // A rota fica explicitamente protegida mesmo se o proxy for ignorado num teste,
+  // preview ou infraestrutura alternativa. `allowed_paths` ausente/estranho nega.
+  if (auth.session.role === 'viewer' &&
+    (!Array.isArray(auth.session.allowed_paths) || !isCreativeAnalysisTabAllowed(auth.session.allowed_paths, 'historico'))) {
+    return NextResponse.json({ error: 'Sem acesso ao Histórico de Performance' }, { status: 403 })
+  }
 
-  const sp = req.nextUrl.searchParams
-  const de = sp.get('de') ?? ''
-  const ate = sp.get('ate') ?? ''
-  const funil = sp.get('funil') ?? 'all'
-  const conta = sp.get('conta') ?? 'all'
-  const top = parseTop(sp.get('top'))
-  const adIds = parseAdIds(sp.get('adIds'))
+  let body: Record<string, unknown>
+  try {
+    const parsed: unknown = await req.json()
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('body inválido')
+    body = parsed as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ error: 'Body JSON inválido' }, { status: 400 })
+  }
+  const de = optionalFilter(body, 'de', '', 10)
+  const ate = optionalFilter(body, 'ate', '', 10)
+  const funil = optionalFilter(body, 'funil', 'all', 64)
+  const conta = optionalFilter(body, 'conta', 'all', 128)
+  const adIds = parseAdIds(body.adIds)
+  const topByMetric = parseTopByMetric(body.topByMetric)
 
+  if (de == null || ate == null || funil == null || conta == null || adIds == null || topByMetric == null) {
+    return NextResponse.json({ error: 'Filtros inválidos' }, { status: 400 })
+  }
   if ((de && !validDate(de)) || (ate && !validDate(ate))) {
     return NextResponse.json({ error: 'Período inválido: use YYYY-MM-DD' }, { status: 400 })
   }
   if (de && ate && de > ate) {
     return NextResponse.json({ error: '`de` não pode ser posterior a `ate`' }, { status: 400 })
-  }
-  if (funil.length > 64 || conta.length > 128) {
-    return NextResponse.json({ error: 'Filtro inválido' }, { status: 400 })
-  }
-  if (top == null) {
-    return NextResponse.json({ error: `top deve ser inteiro entre 1 e ${MAX_TOP}` }, { status: 400 })
-  }
-  if (adIds == null) {
-    return NextResponse.json({ error: `adIds inválidos (máximo ${MAX_AD_IDS})` }, { status: 400 })
   }
   const days = calendarDays(de, ate)
   if (days === null) {
@@ -116,13 +145,13 @@ export async function GET(req: NextRequest) {
     if (ate) transacoes = transacoes.filter((row) => (row.data ?? '') <= ate)
     transacoes = filterTransacoesByFunil(transacoes, funil, allMeta, funis)
 
-    const history = buildCreativePerformanceHistory(meta, transacoes, { days: days ?? undefined, top })
+    const history = buildCreativePerformanceHistory(meta, transacoes, { days: days ?? undefined, topByMetric })
     return NextResponse.json({
       ...history,
       meta: {
         from: de || null,
         to: ate || null,
-        top,
+        topByMetric,
         selectedCreatives: new Set(meta.map((row) => row.criativo || row.ad_name || '(sem nome)')).size,
       },
     })

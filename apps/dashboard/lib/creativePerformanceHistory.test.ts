@@ -26,6 +26,10 @@ function graph(history: ReturnType<typeof buildCreativePerformanceHistory>, metr
   return history.metrics[metric]
 }
 
+function options(top: number) {
+  return { topByMetric: { hook_rate: top, conv_body: top, cpc_link: top, hold_rate: top } }
+}
+
 describe('buildCreativePerformanceHistory', () => {
   it('calcula cada série diária com as fórmulas dos cards e preserva null sem denominador', () => {
     const history = buildCreativePerformanceHistory(
@@ -41,7 +45,7 @@ describe('buildCreativePerformanceHistory', () => {
         // Sem ad_id, o fallback pelo nome do criativo funciona.
         trans({ data: '2026-08-02', ad_id: null, criativo: 'Criativo A' }),
       ],
-      { days: ['2026-08-01', '2026-08-02', '2026-08-03'], top: 10 },
+      { ...options(10), days: ['2026-08-01', '2026-08-02', '2026-08-03'] },
     )
 
     expect(graph(history, 'hook_rate').series[0].points).toEqual([
@@ -64,7 +68,7 @@ describe('buildCreativePerformanceHistory', () => {
   it('mantém o fallback views95 do Hold Rate usado pelos cards', () => {
     const history = buildCreativePerformanceHistory(
       [meta({ impressoes: 100, views_75pct: 0, views_95pct: 25 })], [],
-      { days: ['2026-08-01'], top: 1 },
+      { ...options(1), days: ['2026-08-01'] },
     )
     expect(graph(history, 'hold_rate').series[0].points[0].value).toBe(0.25)
   })
@@ -79,13 +83,32 @@ describe('buildCreativePerformanceHistory', () => {
         trans({ ad_id: 'a', criativo: 'A' }), trans({ ad_id: 'a', criativo: 'A' }),
         trans({ ad_id: 'b', criativo: 'B' }), trans({ ad_id: 'b', criativo: 'B' }), trans({ ad_id: 'b', criativo: 'B' }),
       ],
-      { days: ['2026-08-01'], top: 1 },
+      { ...options(1), days: ['2026-08-01'] },
     )
 
     expect(graph(history, 'hook_rate').series.map((s) => s.name)).toEqual(['A'])
     expect(graph(history, 'conv_body').series.map((s) => s.name)).toEqual(['B'])
     expect(graph(history, 'cpc_link').series.map((s) => s.name)).toEqual(['B'])
     expect(graph(history, 'hold_rate').series.map((s) => s.name)).toEqual(['B'])
+  })
+
+  it('aceita limites Top X diferentes para cada métrica', () => {
+    const history = buildCreativePerformanceHistory(
+      [
+        meta({ ad_id: 'a', criativo: 'A', impressoes: 100, views_3seg: 90, views_75pct: 80, cliques_link: 10, investimento: 100 }),
+        meta({ ad_id: 'b', criativo: 'B', impressoes: 100, views_3seg: 80, views_75pct: 90, cliques_link: 100, investimento: 100 }),
+      ],
+      [
+        trans({ ad_id: 'a', criativo: 'A' }), trans({ ad_id: 'a', criativo: 'A' }),
+        trans({ ad_id: 'b', criativo: 'B' }), trans({ ad_id: 'b', criativo: 'B' }), trans({ ad_id: 'b', criativo: 'B' }),
+      ],
+      {
+        days: ['2026-08-01'],
+        topByMetric: { hook_rate: 1, conv_body: 1, cpc_link: 2, hold_rate: 1 },
+      },
+    )
+    expect(graph(history, 'hook_rate').series).toHaveLength(1)
+    expect(graph(history, 'cpc_link').series.map((s) => s.name)).toEqual(['B', 'A'])
   })
 
   it('ranqueia taxas pela razão das somas, não pela média das taxas diárias', () => {
@@ -95,7 +118,7 @@ describe('buildCreativePerformanceHistory', () => {
         meta({ data: '2026-08-02', criativo: 'A', impressoes: 90, views_3seg: 0 }),
         meta({ data: '2026-08-01', ad_id: 'b', criativo: 'B', impressoes: 10, views_3seg: 2 }),
       ], [],
-      { days: ['2026-08-01', '2026-08-02'], top: 1 },
+      { ...options(1), days: ['2026-08-01', '2026-08-02'] },
     )
     // A: 10/100 = 10%; B: 2/10 = 20%. Média simples dos dias de A daria 50% e estaria errada.
     expect(graph(history, 'hook_rate').series.map((s) => s.name)).toEqual(['B'])
@@ -108,7 +131,7 @@ describe('buildCreativePerformanceHistory', () => {
         meta({ ad_id: 'b', criativo: 'Beta', impressoes: 100, views_3seg: 50 }),
         meta({ ad_id: 'c', criativo: 'Alfa', impressoes: 100, views_3seg: 50 }),
       ], [],
-      { days: ['2026-08-01'], top: 3 },
+      { ...options(3), days: ['2026-08-01'] },
     )
     expect(graph(history, 'hook_rate').series.map((s) => s.name)).toEqual(['Alfa', 'Beta', 'Zulu'])
   })
@@ -120,7 +143,7 @@ describe('buildCreativePerformanceHistory', () => {
         trans({ produto: 'Script ANTI-Desconto' }),
         trans({ ad_id: 'desconhecido', criativo: 'Não exibido' }),
       ],
-      { days: ['2026-08-01'], top: 10 },
+      { ...options(10), days: ['2026-08-01'] },
     )
     // Sem venda front-end, a taxa válida é 0% (não null, pois há base suficiente).
     expect(graph(history, 'conv_body').series[0].points[0].value).toBe(0)
