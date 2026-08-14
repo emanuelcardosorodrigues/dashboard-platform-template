@@ -335,7 +335,8 @@ export function CriativoCard({
         </div>
       </div>
 
-      {/* ===== Bloco de métricas (Gasto / ROAS / CPA / Impressões / Vendas) ===== */}
+      {/* Receita líquida fica ao lado de Vendas: os dois números leem o resultado
+          comercial do criativo sem disputar a hierarquia com gasto/ROAS. */}
       <div className="grid grid-cols-2 gap-px bg-border">
         <Stat label="Gasto" value={brl(criativo.investimento)} />
         <Stat
@@ -345,8 +346,9 @@ export function CriativoCard({
           badgeColor={COLOR[roasSinal]}
           sub={`CPA ${criativo.cpa !== null ? brl(criativo.cpa) : "—"}`}
         />
-        <Stat label="Impressões" value={compact(criativo.impressoes)} />
         <Stat label="Vendas" value={String(criativo.vendas)} />
+        <Stat label="Receita líquida" value={brl(criativo.receita)} />
+        <Stat className="col-span-2" label="Impressões" value={compact(criativo.impressoes)} />
       </div>
 
       {/* ===== Barras de métrica (default CPM / CTR / Hook Rate) ===== */}
@@ -532,15 +534,17 @@ function Stat({
   sub,
   badge = false,
   badgeColor,
+  className = '',
 }: {
   label: string;
   value: string;
   sub?: string;
   badge?: boolean;
   badgeColor?: string;
+  className?: string;
 }) {
   return (
-    <div className="bg-surface px-3 py-2">
+    <div className={`bg-surface px-3 py-2 ${className}`}>
       <p className="text-[9px] uppercase tracking-wide text-text-secondary">{label}</p>
       <div className="flex items-baseline gap-1.5">
         {badge ? (

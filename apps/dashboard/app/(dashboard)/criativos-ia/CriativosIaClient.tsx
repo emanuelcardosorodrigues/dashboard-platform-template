@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Search, Sparkles, X, SlidersHorizontal, Star, Plus, Pencil, Trash2, ChevronDown, ArrowUpDown } from 'lucide-react'
@@ -21,6 +21,22 @@ const ChatsTab = dynamic(() => import('./tabs/ChatsTab'), {
   ssr: false,
   loading: () => <div className="p-4 text-sm text-gray-500">Carregando chat…</div>,
 })
+
+// A consulta pesada e o Recharts só são baixados quando o usuário abre o histórico.
+const HistoryPerformanceTab = dynamic(() => import('./tabs/HistoryPerformanceTab'), {
+  ssr: false,
+  loading: () => <div className="py-16 text-center text-sm text-text-secondary">Carregando histórico…</div>,
+})
+
+export type CreativeAnalysisTab = 'cards' | 'history' | 'creatives' | 'insights'
+export type CreativeAnalysisLegacyTabs = Partial<Record<Extract<CreativeAnalysisTab, 'creatives' | 'insights'>, ReactNode>>
+
+const SUB_TABS: Array<{ id: CreativeAnalysisTab; label: string }> = [
+  { id: 'cards', label: 'Criativos em Cards' },
+  { id: 'history', label: 'Histórico de Performance' },
+  { id: 'creatives', label: 'Criativos' },
+  { id: 'insights', label: 'Insights IA' },
+]
 
 // Catálogo COMPLETO de métricas de ordenação (todas disponíveis) com getter (suporta derivadas como Lucro).
 type Metrica = { id: string; label: string; dir: 'asc' | 'desc'; get: (c: Card) => number | null }
@@ -87,7 +103,7 @@ function readLocalGrupos(): Grupo[] {
   return []
 }
 
-export default function CriativosIaClient({ initial }: { initial: Card[] }) {
+export default function CriativosIaClient({ initial, legacyTabs }: { initial: Card[]; legacyTabs?: CreativeAnalysisLegacyTabs }) {
   // Filtros globais (Header/URL) — usados só pra passar ao PadroesCampeoes.
   const sp = useSearchParams()
   const router = useRouter()
@@ -97,6 +113,18 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
   const ate = sp.get('ate') ?? ''
   const funil = sp.get('funil') ?? 'all'
   const conta = sp.get('conta') ?? 'all'
+  const tabParam = sp.get('tab')
+  const activeTab: CreativeAnalysisTab = SUB_TABS.some((tab) => tab.id === tabParam)
+    ? tabParam as CreativeAnalysisTab
+    : 'cards'
+  const selectTab = (tab: CreativeAnalysisTab) => {
+    const params = new URLSearchParams(sp.toString())
+    // Cards é a visualização padrão; omitir mantém links antigos idênticos.
+    if (tab === 'cards') params.delete('tab')
+    else params.set('tab', tab)
+    const query = params.toString()
+    router.replace(query ? `?${query}` : '?', { scroll: false })
+  }
 
   // Dados vêm PRONTOS do servidor (sem waterfall de fetch no cliente).
   const criativos = initial
@@ -339,6 +367,18 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
     return [...s]
   }, [visiveis, criativos.length])
 
+  // Histórico recebe exatamente o mesmo conjunto que os Cards renderizariam.
+  // `ad_ids` preserva todos os anúncios reunidos sob um mesmo nome de card.
+  const visibleAdRefs = useMemo(() => {
+    const ids = new Set<string>()
+    for (const card of visiveis) {
+      const refs = (card as Card).ad_ids
+      if (refs?.length) refs.forEach((id) => ids.add(id))
+      else if ((card as Card).ad_id) ids.add((card as Card).ad_id)
+    }
+    return [...ids]
+  }, [visiveis])
+
   // A-F6 perf: renderiza só uma janela de cards e cresce ao rolar (IntersectionObserver).
   // ~400 cards de uma vez pesam no mount; 48 + incremento corta o DOM inicial sem
   // mudar layout. CSV/rodapé usam `visiveis` inteiro, então totais seguem certos.
@@ -557,8 +597,22 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
 
   return (
     <div className="space-y-4">
+      <nav aria-label="Seções da Análise de Criativos" className="flex gap-1 overflow-x-auto border-b border-border">
+        {SUB_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => selectTab(tab.id)}
+            aria-current={activeTab === tab.id ? 'page' : undefined}
+            className={`shrink-0 border-b-2 px-3 py-2 text-xs font-medium transition-colors ${activeTab === tab.id ? 'border-purple-400 text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
       {/* Header do container */}
-      <div className="flex items-center justify-between gap-3">
+      {activeTab === 'cards' && <div className="flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Criativos em Cards</h2>
         <button
           type="button"
@@ -568,13 +622,13 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
           <Sparkles className="h-3.5 w-3.5" />
           Analisar com Equipe
         </button>
-      </div>
+      </div>}
 
       {/* ── DESKTOP (md+): toolbar ATUAL, byte a byte igual ──────────────────
           `isMobile` é false no SSR e em md+, então este ramo é o que o desktop
           sempre viu: abas de grupo, depois a toolbar (busca + Ordenar + Métricas
           + Tags), depois os filtros avançados — mesma ordem, mesmas classes. */}
-      {!isMobile && (
+      {(activeTab === 'cards' || activeTab === 'history') && !isMobile && (
         <>
           {renderGruposTabs()}
 
@@ -582,7 +636,7 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
           <div className="flex items-center gap-3 flex-wrap">
             {searchBox('flex-1 min-w-[180px] max-w-xs')}
             {renderOrdenar()}
-            {renderMetricas()}
+            {activeTab === 'cards' && renderMetricas()}
             {renderTags()}
           </div>
 
@@ -595,7 +649,7 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
           B3: a "parede de controles" (abas de grupo + Ordenar + Métricas + Tags +
           FilterBar) colapsa atrás de um botão que resume o estado ativo. Accordion
           INLINE (sem sheet novo — o coordenador cuida do sheet global). */}
-      {isMobile && (
+      {(activeTab === 'cards' || activeTab === 'history') && isMobile && (
         <>
           {searchBox('w-full')}
 
@@ -618,7 +672,7 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
               {renderGruposTabs()}
               <div className="flex items-center gap-3 flex-wrap">
                 {renderOrdenar()}
-                {renderMetricas()}
+                {activeTab === 'cards' && renderMetricas()}
                 {renderTags()}
               </div>
               {renderFilterBar()}
@@ -627,6 +681,7 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
         </>
       )}
 
+      {activeTab === 'cards' && <>
       {/* Padrões Campeões (maiores ROAS — p80) */}
       <PadroesCampeoes de={de} ate={ate} funil={funil} conta={conta} />
 
@@ -702,9 +757,18 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
           </div>
         </div>
       )}
+      </>}
+
+      {activeTab === 'history' && (
+        <HistoryPerformanceTab de={de} ate={ate} funil={funil} conta={conta} adIds={visibleAdRefs} />
+      )}
+
+      {(activeTab === 'creatives' || activeTab === 'insights') && (
+        legacyTabs?.[activeTab] ?? <LegacyTabPlaceholder tab={activeTab} />
+      )}
 
       {/* Modal criar/editar grupo de análise */}
-      {grupoModal && (
+      {(activeTab === 'cards' || activeTab === 'history') && grupoModal && (
         <GrupoModal
           grupo={grupoModal === 'novo' ? null : grupoModal}
           onClose={() => setGrupoModal(null)}
@@ -712,6 +776,18 @@ export default function CriativosIaClient({ initial }: { initial: Card[] }) {
           onDelete={excluirGrupo}
         />
       )}
+    </div>
+  )
+}
+
+/** Slot de integração: a migração das páginas legadas injeta seus clients aqui
+ * sem duplicar a barra de navegação ou os filtros de Cards/Histórico. */
+function LegacyTabPlaceholder({ tab }: { tab: Extract<CreativeAnalysisTab, 'creatives' | 'insights'> }) {
+  const label = tab === 'creatives' ? 'Criativos' : 'Insights IA'
+  return (
+    <div className="rounded-lg border border-border bg-surface p-8 text-center">
+      <h2 className="text-sm font-semibold text-text-primary">{label}</h2>
+      <p className="mt-2 text-sm text-text-secondary">O conteúdo desta seção está sendo carregado na Análise de Criativos.</p>
     </div>
   )
 }
