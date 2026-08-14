@@ -763,7 +763,7 @@ export default function CriativosIaClient({ initial, hideTabs = false }: { initi
       )}
 
       {/* Modal criar/editar grupo de análise */}
-      {(activeTab === 'cards' || activeTab === 'history') && grupoModal && (
+      {(activeTab === 'cards' || activeTab === 'historico') && grupoModal && (
         <GrupoModal
           grupo={grupoModal === 'novo' ? null : grupoModal}
           onClose={() => setGrupoModal(null)}
