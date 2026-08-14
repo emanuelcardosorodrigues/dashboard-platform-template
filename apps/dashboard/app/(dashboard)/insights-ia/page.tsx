@@ -1,55 +1,33 @@
-import Header from '@/components/layout/Header'
-import {
-  fetchLatestAiInsightForRange,
-  fetchClarityDailyRange,
-  fetchMetaAds,
-  fetchTransacoes,
-  fetchQualificacao,
-} from '@/lib/supabase'
-import { brazilDateStr } from '@/lib/brazilDate'
-import { aggregateCreatives } from '@/lib/creativeAnalysis'
-import { cohortByCreative, type CreativeCohort } from '@/lib/cohortAnalysis'
-import InsightsIAClient from './InsightsIAClient'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Compatibilidade para links antigos de Insights IA.
+ *
+ * O proxy valida /insights-ia antes do redirect e volta a validar a URL
+ * consolidada pelo tab. Logo este redirect não contorna allowed_paths.
+ */
 export default async function InsightsIAPage({
   searchParams,
 }: {
-  searchParams: Promise<{ de?: string; ate?: string; data?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const params = await searchParams
-  // Compat: ?data=YYYY-MM-DD vira from=to.
-  const from = params.de ?? params.data ?? brazilDateStr(7)
-  const to = params.ate ?? params.data ?? brazilDateStr(1)
+  const target = new URLSearchParams([['tab', 'insights']])
+  const data = typeof params.data === 'string' ? params.data : undefined
 
-  const [insight, metricas, metaAds, transacoes, qualificacao] = await Promise.all([
-    fetchLatestAiInsightForRange(from, to),
-    fetchClarityDailyRange(from, to),
-    fetchMetaAds(),
-    fetchTransacoes(),
-    fetchQualificacao(),
-  ])
+  // Preserva um intervalo explícito. Para o formato legado ?data=, converte em
+  // de/ate (a URL final é autoexplicativa e o conteúdo mantém a mesma semântica).
+  const de = typeof params.de === 'string' ? params.de : data
+  const ate = typeof params.ate === 'string' ? params.ate : data
+  if (de) target.set('de', de)
+  if (ate) target.set('ate', ate)
 
-  const metaPeriodo = metaAds.filter((m) => m.data >= from && m.data <= to)
-  const transPeriodo = transacoes.filter((t) => (t.data ?? '') >= from && (t.data ?? '') <= to)
-  const creatives = aggregateCreatives(metaPeriodo, transPeriodo)
-  const cohortMap = cohortByCreative(transPeriodo, qualificacao)
-  const cohorts: CreativeCohort[] = Array.from(cohortMap.values())
+  for (const key of ['funil', 'conta', 'cmp', 'cmpDe', 'cmpAte', 'f']) {
+    const value = params[key]
+    if (typeof value === 'string' && value) target.set(key, value)
+  }
 
-  return (
-    <div className="flex flex-col h-full">
-      <Header title="Insights IA" subtitle="Análise estratégica do período · Gemini" />
-      <div className="flex-1 overflow-y-auto p-6">
-        <InsightsIAClient
-          from={from}
-          to={to}
-          insight={insight}
-          metricas={metricas}
-          creatives={creatives}
-          cohorts={cohorts}
-        />
-      </div>
-    </div>
-  )
+  redirect(`/criativos-ia?${target.toString()}`)
 }

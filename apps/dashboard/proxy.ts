@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { SESSION_COOKIE, isPathAllowed } from '@/lib/auth'
+import {
+  SESSION_COOKIE,
+  isCreativeAnalysisTabAllowed,
+  isPathAllowed,
+  normalizeCreativeAnalysisTab,
+} from '@/lib/auth'
 import {
   lookupSession,
   touchSession,
@@ -101,7 +106,16 @@ export async function proxy(req: NextRequest) {
     return maybeRenew(NextResponse.next(), session)
   }
 
-  if (!isPathAllowed(session.allowed_paths, pathname)) {
+  // A rota consolidada precisa preservar os grants legados por sub-aba. Não
+  // basta liberar /criativos-ia inteiro: quem tinha apenas /insights-ia, por
+  // exemplo, pode abrir somente ?tab=insights. O redirect das rotas legadas
+  // passa por esta checagem numa segunda requisição, sem bypass do proxy.
+  const isCreativeAnalysis = pathname === '/criativos-ia'
+  const allowed = isCreativeAnalysis
+    ? isCreativeAnalysisTabAllowed(session.allowed_paths, normalizeCreativeAnalysisTab(req.nextUrl.searchParams.get('tab')))
+    : isPathAllowed(session.allowed_paths, pathname)
+
+  if (!allowed) {
     return redirectToDefaultDestination(req, session)
   }
 

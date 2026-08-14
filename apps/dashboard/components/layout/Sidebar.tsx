@@ -7,7 +7,6 @@ import WorkspaceSwitcher, { type WorkspaceLite } from './WorkspaceSwitcher'
 import {
   LayoutDashboard,
   Calculator,
-  PlayCircle,
   Video,
   Megaphone,
   Users,
@@ -52,7 +51,12 @@ import {
 import { logoutAction } from '@/app/login/actions'
 import { syncAllAction } from '@/app/actions/syncMeta'
 import { clsx } from 'clsx'
-import { isPathAllowed, type Role } from '@/lib/auth'
+import {
+  canAccessCreativeAnalysis,
+  creativeAnalysisHrefForAllowedPaths,
+  isPathAllowed,
+  type Role,
+} from '@/lib/auth'
 
 interface NavItem { href: string; label: string; icon: LucideIcon }
 interface NavGroup { id: string; label: string; icon: LucideIcon; items: NavItem[] }
@@ -66,9 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: 'metricas', label: 'Métricas', icon: TrendingUp, items: [
       { href: '/calculadora', label: 'Calculadora', icon: Calculator },
-      { href: '/criativos', label: 'Criativos', icon: PlayCircle },
       { href: '/criativos-ia', label: 'Análise de Criativos', icon: Sparkles },
-      { href: '/insights-ia', label: 'Insights IA', icon: Sparkles },
       { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
       { href: '/perpetuo', label: 'Perpétuo', icon: Workflow },
       { href: '/vsl', label: 'VSLs', icon: Video },
@@ -201,10 +203,22 @@ export default function Sidebar({
     ? new Date(dataFreshness).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
     : null
 
-  const canSee = (href: string) => isAdmin || isPathAllowed(allowedPaths, href)
+  const canSee = (href: string) =>
+    isAdmin || (href === '/criativos-ia'
+      ? canAccessCreativeAnalysis(allowedPaths)
+      : isPathAllowed(allowedPaths, href))
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
-  const linkHref = (href: string) =>
-    `${href}?${de ? `de=${de}&` : ''}${ate ? `ate=${ate}&` : ''}funil=${funil}${conta && conta !== 'all' ? `&conta=${conta}` : ''}`
+  const linkHref = (href: string) => {
+    const target = href === '/criativos-ia' && !isAdmin
+      ? creativeAnalysisHrefForAllowedPaths(allowedPaths)
+      : href
+    const url = new URL(target, 'https://dashboard.local')
+    if (de) url.searchParams.set('de', de)
+    if (ate) url.searchParams.set('ate', ate)
+    url.searchParams.set('funil', funil)
+    if (conta && conta !== 'all') url.searchParams.set('conta', conta)
+    return `${url.pathname}?${url.searchParams.toString()}`
+  }
 
   // Item de navegação (reaproveitado por Visão Geral, itens de pasta e Admin).
   const NavLinkItem = ({ item }: { item: NavItem }) => {

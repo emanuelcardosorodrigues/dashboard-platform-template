@@ -43,7 +43,7 @@ export default function ClarityClient({ from, to, insight, metricas, metricasErr
   }, [metricas])
 
   const periodoHuman = formatRange(from, to)
-  const insightsUrl = `/insights-ia?de=${from}&ate=${to}`
+  const insightsUrl = `/criativos-ia?tab=insights&de=${from}&ate=${to}`
 
   return (
     <div className="space-y-6">

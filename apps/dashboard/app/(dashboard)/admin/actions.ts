@@ -73,7 +73,9 @@ function sanitizeDefaultFilters(formData: FormData): Record<string, string> {
 // Presets pra simplificar criação inicial.
 const PRESET_PATHS: Record<string, string[]> = {
   todas: [...DASHBOARD_PATHS],
-  basico: ['/visao-geral', '/calculadora', '/criativos', '/campanhas', '/funil', '/financeiro'],
+  // Novos usuários recebem Cards/Histórico pela rota consolidada. Grants legados
+  // continuam válidos por sub-aba e não são migrados silenciosamente.
+  basico: ['/visao-geral', '/calculadora', '/criativos-ia', '/campanhas', '/funil', '/financeiro'],
   vazio: [],
 }
 
