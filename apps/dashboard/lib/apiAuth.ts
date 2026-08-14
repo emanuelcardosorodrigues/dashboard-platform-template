@@ -18,6 +18,7 @@ import { cookies } from 'next/headers'
 import { SESSION_COOKIE } from '@/lib/auth'
 import { lookupSession, fetchWorkspaceIds } from '@/lib/sessions'
 import { resolveWorkspaceFromRequest } from '@/lib/criativo-pipeline'
+import { getWorkspaceContext } from '@/lib/workspace-context'
 
 export async function requireAuth(req: NextRequest, client: SupabaseClient) {
   const c = await cookies()
@@ -30,4 +31,22 @@ export async function requireAuth(req: NextRequest, client: SupabaseClient) {
     return { error: NextResponse.json({ error: 'Sem acesso a este workspace' }, { status: 403 }) }
   }
   return { session, ws }
+}
+
+/**
+ * Versão para endpoints que não aceitam `account_id` como seletor de workspace.
+ * Usa o projeto ativo já validado contra a membership da sessão; portanto o
+ * cliente nunca escolhe o tenant por query string (fecha IDOR).
+ */
+export async function requireActiveWorkspaceAuth() {
+  const c = await cookies()
+  const sid = c.get(SESSION_COOKIE)?.value
+  const session = sid ? await lookupSession(sid) : null
+  if (!session) return { error: NextResponse.json({ error: 'Não autenticado' }, { status: 401 }) }
+
+  const workspace = await getWorkspaceContext()
+  if (!workspace.workspaceIds.includes(workspace.activeId)) {
+    return { error: NextResponse.json({ error: 'Sem acesso a este workspace' }, { status: 403 }) }
+  }
+  return { session, workspaceId: workspace.activeId }
 }
