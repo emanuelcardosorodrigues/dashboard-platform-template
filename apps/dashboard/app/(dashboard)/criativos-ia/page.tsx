@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { FolderOpen } from 'lucide-react'
 import Header from '@/components/layout/Header'
 import { fetchMetaAds } from '@/lib/supabase'
@@ -47,13 +48,17 @@ export default async function CriativosIaPage({ searchParams }: { searchParams: 
   const tab = normalizeCreativeAnalysisTab(params.tab)
   const sessionId = (await cookies()).get(SESSION_COOKIE)?.value
   const session = sessionId ? await lookupSession(sessionId).catch(() => null) : null
-  const allowedTabs = session?.role === 'viewer'
+  if (!session) redirect('/login?from=/criativos-ia')
+  if (session.role === 'viewer' && !isCreativeAnalysisTabAllowed(session.allowed_paths, tab)) {
+    redirect('/visao-geral')
+  }
+  const allowedTabs = session.role === 'viewer'
     ? CREATIVE_ANALYSIS_TABS.filter((candidate) => isCreativeAnalysisTabAllowed(session.allowed_paths, candidate))
     : [...CREATIVE_ANALYSIS_TABS]
 
   // O proxy já barra a navegação não autorizada. Esta guarda server-side evita
   // carregar dados de outra sub-aba caso a página seja alcançada sem ele.
-  const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0] ?? 'cards'
+  const activeTab = tab
   const needsCardData = activeTab === 'cards' || activeTab === 'historico'
   const allMeta = needsCardData || activeTab === 'criativos' ? await fetchMetaAds() : []
   const criativos = needsCardData ? await listCriativos(de, ate, funil, conta) : []

@@ -775,17 +775,6 @@ export default function CriativosIaClient({ initial, hideTabs = false }: { initi
   )
 }
 
-/** Slot de integração: a migração das páginas legadas injeta seus clients aqui
- * sem duplicar a barra de navegação ou os filtros de Cards/Histórico. */
-function LegacyTabPlaceholder({ tab }: { tab: Extract<CreativeAnalysisTab, 'creatives' | 'insights'> }) {
-  const label = tab === 'creatives' ? 'Criativos' : 'Insights IA'
-  return (
-    <div className="rounded-lg border border-border bg-surface p-8 text-center">
-      <h2 className="text-sm font-semibold text-text-primary">{label}</h2>
-      <p className="mt-2 text-sm text-text-secondary">O conteúdo desta seção está sendo carregado na Análise de Criativos.</p>
-    </div>
-  )
-}
 
 // Linha do dropdown de ordenação: seleciona a métrica + estrela pra favoritar.
 function OrdenarRow({ m, ativo, fav, onPick, onFav }: { m: Metrica; ativo: boolean; fav: boolean; onPick: () => void; onFav: () => void }) {
