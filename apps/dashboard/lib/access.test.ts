@@ -5,6 +5,7 @@ import {
   canAccessDomain,
   allowedDomains,
   domainForPath,
+  domainForCreativeAnalysisTab,
   isDomainId,
   sanitizeDomainIds,
   type DomainAccessInput,
@@ -78,6 +79,12 @@ describe('domainForPath', () => {
   test('ignora querystring e hash', () => {
     expect(domainForPath('/funil?de=2026-01-01&funil=all')).toBe('funil')
     expect(domainForPath('/financeiro#top')).toBe('financeiro')
+  })
+
+  test('Insights consolidado mantém o domínio legado funil', () => {
+    expect(domainForCreativeAnalysisTab('insights')).toBe('funil')
+    expect(domainForCreativeAnalysisTab('cards')).toBe('criativos')
+    expect(domainForCreativeAnalysisTab('historico')).toBe('criativos')
   })
 
   test('rota fora do catálogo → null', () => {

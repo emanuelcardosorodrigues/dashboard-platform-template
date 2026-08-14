@@ -127,6 +127,17 @@ export function domainForPath(path: string): DomainId | null {
   return null
 }
 
+/**
+ * Domínio de IA da sub-aba consolidada de Análise de Criativos.
+ *
+ * Insights IA continuava no domínio "funil" antes da consolidação. Mantemos
+ * isso na URL nova para que mover a tela não amplie o acesso a dados da IA de
+ * viewers que têm apenas o domínio de criativos (ou vice-versa).
+ */
+export function domainForCreativeAnalysisTab(tab: string | null | undefined): DomainId {
+  return tab === 'insights' ? 'funil' : 'criativos'
+}
+
 /** Estrutura mínima pra decidir acesso — SessionInfo é atribuível a isto. */
 export interface DomainAccessInput {
   role: Role

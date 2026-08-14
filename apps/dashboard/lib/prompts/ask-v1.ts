@@ -19,7 +19,7 @@ export interface AskPromptInput {
 const ROUTE_DESCRIPTIONS: Record<string, string> = {
   '/visao-geral': 'KPIs gerais (investimento, ROAS, vendas, CPA).',
   '/calculadora': 'simulador de cenários: sliders de CPM/CTR/carregamento/conversão/ticket projetando CPA, ROAS, PRV (receita por visualização) e L/PV (lucro por visualização).',
-  '/criativos': 'lista de criativos com performance individual.',
+  '/criativos-ia': 'análise de criativos. A sub-aba ativa vem do filtro tab: cards, historico, criativos ou insights.',
   '/campanhas': 'agrupado por campanha Meta.',
   '/qualificacao': 'fichas de qualificação dos leads.',
   '/funil': 'funil de conversão com taxas por etapa.',
@@ -28,7 +28,6 @@ const ROUTE_DESCRIPTIONS: Record<string, string> = {
   '/perfil-comprador': 'perfil demográfico dos compradores.',
   '/voz-comprador': 'frases extraídas das qualificações.',
   '/analise-estrategica': 'visão estratégica consolidada.',
-  '/insights-ia': 'análise IA detalhada do período.',
   '/clarity': 'comportamento real (Clarity).',
   '/experimentos': 'A/B tests rodando.',
   '/quizzes': 'funil dos quizzes.',

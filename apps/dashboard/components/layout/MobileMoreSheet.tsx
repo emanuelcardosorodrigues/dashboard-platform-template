@@ -27,7 +27,6 @@ import { usePathname } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import {
   LayoutDashboard,
-  PlayCircle,
   Sparkles,
   Megaphone,
   Workflow,
@@ -63,7 +62,12 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import BottomSheet from '@/components/ui/BottomSheet'
-import { isPathAllowed, type Role } from '@/lib/auth'
+import {
+  canAccessCreativeAnalysis,
+  creativeAnalysisHrefForAllowedPaths,
+  isPathAllowed,
+  type Role,
+} from '@/lib/auth'
 
 interface MoreItem { href: string; label: string; icon: LucideIcon }
 interface MoreGroup { id: string; label: string; items: MoreItem[] }
@@ -75,9 +79,7 @@ const GROUPS: MoreGroup[] = [
   {
     id: 'metricas', label: 'Métricas', items: [
       { href: '/calculadora', label: 'Calculadora', icon: Calculator },
-      { href: '/criativos', label: 'Criativos', icon: PlayCircle },
       { href: '/criativos-ia', label: 'Análise de Criativos', icon: Sparkles },
-      { href: '/insights-ia', label: 'Insights IA', icon: Sparkles },
       { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
       { href: '/perpetuo', label: 'Perpétuo', icon: Workflow },
       { href: '/vsl', label: 'VSLs', icon: Video },
@@ -149,7 +151,9 @@ export default function MobileMoreSheet({ open, onClose, allowedPaths, role }: M
   // Filtro por permissão: aplica só quando allowed_paths existe e o user não é
   // admin. Sem a lista, `canSee` é sempre true (undefined = ALL compat).
   const canSee = (href: string) =>
-    role === 'admin' || !allowedPaths || isPathAllowed(allowedPaths, href)
+    role === 'admin' || !allowedPaths || (href === '/criativos-ia'
+      ? canAccessCreativeAnalysis(allowedPaths)
+      : isPathAllowed(allowedPaths, href))
 
   // Pastas visíveis + Visão Geral no topo + soltos no fim, já filtrados por permissão.
   const permittedGroups = useMemo<MoreGroup[]>(() => {
@@ -175,10 +179,13 @@ export default function MobileMoreSheet({ open, onClose, allowedPaths, role }: M
   const Row = ({ item }: { item: MoreItem }) => {
     const Icon = item.icon
     const active = isActive(item.href)
+    const href = item.href === '/criativos-ia' && role !== 'admin' && allowedPaths
+      ? creativeAnalysisHrefForAllowedPaths(allowedPaths)
+      : item.href
     return (
       <li>
         <Link
-          href={item.href}
+          href={href}
           onClick={onClose}
           // Alvo min-h-14 (≥ .tap-target--edge de 48px); gap-1 entre linhas evita rage tap.
           className={clsx(

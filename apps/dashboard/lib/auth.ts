@@ -12,6 +12,17 @@ export const ACTIVE_WS_COOKIE = 'active_ws'
 
 export type Role = 'admin' | 'viewer'
 
+/** Sub-abas da rota consolidada /criativos-ia. */
+export const CREATIVE_ANALYSIS_TABS = ['cards', 'historico', 'criativos', 'insights'] as const
+export type CreativeAnalysisTab = (typeof CREATIVE_ANALYSIS_TABS)[number]
+
+/** Entrada não reconhecida mantém a aba atual, Cards. */
+export function normalizeCreativeAnalysisTab(value: string | null | undefined): CreativeAnalysisTab {
+  return CREATIVE_ANALYSIS_TABS.includes(value as CreativeAnalysisTab)
+    ? value as CreativeAnalysisTab
+    : 'cards'
+}
+
 /**
  * Catálogo canônico das abas do dashboard.
  * Fonte da verdade pro admin escolher allowed_paths.
@@ -20,6 +31,9 @@ export type Role = 'admin' | 'viewer'
 export const DASHBOARD_PATHS = [
   '/visao-geral',
   '/calculadora',
+  // Grants legados preservados: cada um abre apenas sua sub-aba em
+  // /criativos-ia (ver isCreativeAnalysisTabAllowed). Não removê-los sem uma
+  // migração explícita de users.allowed_paths.
   '/criativos',
   '/criativos-ia',
   '/campanhas',
@@ -64,4 +78,40 @@ export const DASHBOARD_PATHS = [
  */
 export function isPathAllowed(allowedPaths: readonly string[], pathname: string): boolean {
   return allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'))
+}
+
+/**
+ * Compatibilidade de permissão durante a consolidação de Criativos.
+ *
+ * As permissões existentes NÃO são migradas implicitamente: /criativos e
+ * /insights-ia só dão acesso às respectivas sub-abas no endereço novo;
+ * /criativos-ia continua sendo a permissão de Cards e Histórico. Assim o
+ * redirect legado passa duas vezes pelo proxy sem virar um bypass de escopo.
+ */
+export function isCreativeAnalysisTabAllowed(
+  allowedPaths: readonly string[],
+  tab: string | null | undefined,
+): boolean {
+  switch (normalizeCreativeAnalysisTab(tab)) {
+    case 'criativos':
+      return isPathAllowed(allowedPaths, '/criativos')
+    case 'insights':
+      return isPathAllowed(allowedPaths, '/insights-ia')
+    case 'cards':
+    case 'historico':
+      return isPathAllowed(allowedPaths, '/criativos-ia')
+  }
+}
+
+/** Há pelo menos uma sub-aba de Análise de Criativos que o viewer pode abrir. */
+export function canAccessCreativeAnalysis(allowedPaths: readonly string[]): boolean {
+  return CREATIVE_ANALYSIS_TABS.some(tab => isCreativeAnalysisTabAllowed(allowedPaths, tab))
+}
+
+/** Primeiro destino seguro do item único de navegação para um viewer. */
+export function creativeAnalysisHrefForAllowedPaths(allowedPaths: readonly string[]): string {
+  if (isCreativeAnalysisTabAllowed(allowedPaths, 'cards')) return '/criativos-ia'
+  if (isCreativeAnalysisTabAllowed(allowedPaths, 'criativos')) return '/criativos-ia?tab=criativos'
+  if (isCreativeAnalysisTabAllowed(allowedPaths, 'insights')) return '/criativos-ia?tab=insights'
+  return '/criativos-ia'
 }

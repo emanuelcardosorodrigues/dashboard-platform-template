@@ -8,8 +8,8 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { askAI, CanaryLeakError } from '@/lib/askAI'
 import { sanitizeAIResponse, isResponseSuspicious } from '@/lib/aiSanitize'
-import { SESSION_COOKIE, isPathAllowed } from '@/lib/auth'
-import { domainForPath, canAccessDomain } from '@/lib/access'
+import { SESSION_COOKIE, isCreativeAnalysisTabAllowed, isPathAllowed } from '@/lib/auth'
+import { domainForCreativeAnalysisTab, domainForPath, canAccessDomain } from '@/lib/access'
 import { lookupSession } from '@/lib/sessions'
 import { getAiUsage, incrementAndGetAiUsage } from '@/lib/aiUsage'
 import { log } from '@/lib/log'
@@ -84,7 +84,11 @@ export async function POST(req: Request) {
 
   // Server-authoritative: escopo da IA = allowed_paths do user.
   // Admin role bypassa (acesso total). Path forjado pra rota fora do escopo → 403.
-  if (role !== 'admin' && !isPathAllowed(session.allowed_paths, requestedPath)) {
+  const isCreativeAnalysis = requestedPath === '/criativos-ia'
+  const allowedPath = isCreativeAnalysis
+    ? isCreativeAnalysisTabAllowed(session.allowed_paths, searchParams.tab)
+    : isPathAllowed(session.allowed_paths, requestedPath)
+  if (role !== 'admin' && !allowedPath) {
     await audit({
       action: 'ai.ask.path_denied',
       status: 'denied',
@@ -99,7 +103,9 @@ export async function POST(req: Request) {
   }
   // Camada aditiva: escopo por DOMÍNIO de dados da IA (admin bypassa; rota sem
   // domínio de dados = null → nada a barrar).
-  const dominio = domainForPath(requestedPath)
+  const dominio = isCreativeAnalysis
+    ? domainForCreativeAnalysisTab(searchParams.tab)
+    : domainForPath(requestedPath)
   if (role !== 'admin' && dominio && !canAccessDomain({ role, ai_config: ai }, dominio)) {
     await audit({
       action: 'ai.ask.domain_denied',

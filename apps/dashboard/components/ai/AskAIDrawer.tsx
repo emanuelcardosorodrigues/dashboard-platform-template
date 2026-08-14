@@ -14,7 +14,7 @@ interface Message {
 const ROUTE_LABELS: Record<string, string> = {
   '/visao-geral': 'Visão Geral',
   '/calculadora': 'Calculadora Estratégica',
-  '/criativos': 'Criativos',
+  '/criativos-ia': 'Análise de Criativos',
   '/campanhas': 'Campanhas',
   '/qualificacao': 'Qualificação',
   '/funil': 'Funil',
@@ -23,7 +23,6 @@ const ROUTE_LABELS: Record<string, string> = {
   '/perfil-comprador': 'Perfil do Comprador',
   '/voz-comprador': 'Voz do Comprador',
   '/analise-estrategica': 'Análise Estratégica',
-  '/insights-ia': 'Insights IA',
   '/clarity': 'Clarity',
   '/experimentos': 'Experimentos',
   '/quizzes': 'Quizzes',
@@ -293,7 +292,10 @@ export default function AskAIDrawer() {
 
 function buildContextLabel(pathname: string, sp: Record<string, string>): string {
   const route = Object.entries(ROUTE_LABELS).find(([k]) => pathname.startsWith(k))?.[1] ?? pathname
-  const bits: string[] = [`📍 ${route}`]
+  const tabLabel = pathname === '/criativos-ia'
+    ? ({ criativos: 'Criativos', insights: 'Insights IA', historico: 'Histórico de Performance' }[sp.tab] ?? 'Criativos em Cards')
+    : null
+  const bits: string[] = [`📍 ${tabLabel ? `${route} · ${tabLabel}` : route}`]
   if (sp.de && sp.ate) bits.push(`${sp.de} → ${sp.ate}`)
   if (sp.funil && sp.funil !== 'all') bits.push(`funil ${sp.funil}`)
   if (sp.conta && sp.conta !== 'all') bits.push(`conta ${sp.conta.slice(-4)}`)

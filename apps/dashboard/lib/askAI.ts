@@ -87,14 +87,14 @@ export async function buildAskContext(
     return { rota: '/clarity', periodo: { from, to }, top_urls: top }
   }
 
-  if (pathname.startsWith('/insights-ia')) {
+  if (pathname.startsWith('/insights-ia') || (pathname === '/criativos-ia' && searchParams.tab === 'insights')) {
     const { data } = await supabase
       .from('ai_insights')
       .select('data, periodo_from, periodo_to, tldr, alertas, oportunidades, recomendacoes, modelo, prompt_version')
       .eq('workspace_id', wsId)
       .order('gerado_at', { ascending: false })
       .limit(5)
-    return { rota: '/insights-ia', periodo: { from, to }, ultimos_insights: data ?? [] }
+    return { rota: '/criativos-ia?tab=insights', periodo: { from, to }, ultimos_insights: data ?? [] }
   }
 
   if (pathname.startsWith('/qualificacao') || pathname.startsWith('/perfil-comprador') || pathname.startsWith('/voz-comprador')) {
