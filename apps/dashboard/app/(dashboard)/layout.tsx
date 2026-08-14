@@ -52,7 +52,10 @@ async function SidebarSection() {
     getSwitcherWorkspaces().catch(() => ({ active: null, list: [] })),
   ])
   return (
-    <Sidebar role={role} allowedPaths={allowedPaths} dataFreshness={dataFreshness} activeWorkspace={switcher.active} workspaces={switcher.list} />
+    <>
+      <Sidebar role={role} allowedPaths={allowedPaths} dataFreshness={dataFreshness} activeWorkspace={switcher.active} workspaces={switcher.list} />
+      <MobileBottomNav role={role} allowedPaths={allowedPaths} />
+    </>
   )
 }
 
@@ -109,7 +112,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <PullToRefresh>{children}</PullToRefresh>
         </main>
       </div>
-      <MobileBottomNav />
       <Suspense fallback={null}><AskAIDrawer /></Suspense>
       <InstallPrompt />
       <NotificationsPrompt />

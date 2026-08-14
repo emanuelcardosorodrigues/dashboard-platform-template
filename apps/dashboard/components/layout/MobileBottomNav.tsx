@@ -7,7 +7,12 @@ import { LayoutDashboard, Sparkles, FlaskConical, Filter, LayoutGrid } from 'luc
 import { clsx } from 'clsx'
 import { useIsMobile, useMediaQuery } from '@/lib/hooks/useMediaQuery'
 import MobileMoreSheet from './MobileMoreSheet'
-import type { Role } from '@/lib/auth'
+import {
+  canAccessCreativeAnalysis,
+  creativeAnalysisHrefForAllowedPaths,
+  isPathAllowed,
+  type Role,
+} from '@/lib/auth'
 
 // Barra inferior só no mobile (< md). Desktop usa o rail lateral. Os 4 destinos
 // escolhidos pelo dono + um 5º slot "Mais" (A1) que abre o sheet com a nav completa.
@@ -68,8 +73,18 @@ export default function MobileBottomNav({ allowedPaths, role }: MobileBottomNavP
     return () => target.removeEventListener('scroll', onScroll)
   }, [isMobile, reduceMotion, moreOpen])
 
-  // "Mais" acende quando a rota atual NÃO é um dos 4 destinos primários.
-  const onPrimary = ITEMS.some((it) => pathname === it.href || pathname.startsWith(it.href + '/'))
+  const items = ITEMS
+    .map((item) => item.href === '/criativos-ia' && role !== 'admin' && allowedPaths
+      ? { ...item, href: creativeAnalysisHrefForAllowedPaths(allowedPaths) }
+      : item)
+    .filter((item) => role === 'admin' || !allowedPaths || (
+      item.label === 'Criativos'
+        ? canAccessCreativeAnalysis(allowedPaths)
+        : isPathAllowed(allowedPaths, item.href)
+    ))
+
+  // "Mais" acende quando a rota atual NÃO é um dos destinos primários visíveis.
+  const onPrimary = items.some((it) => pathname === it.href || pathname.startsWith(it.href + '/'))
 
   return (
     <>
@@ -84,7 +99,7 @@ export default function MobileBottomNav({ allowedPaths, role }: MobileBottomNavP
           transform: hidden ? 'translateY(100%)' : 'translateY(0)',
         }}
       >
-        {ITEMS.map((it) => {
+        {items.map((it) => {
           const active = pathname === it.href || pathname.startsWith(it.href + '/')
           const Icon = it.icon
           return (
