@@ -84,7 +84,11 @@ export default function MobileBottomNav({ allowedPaths, role }: MobileBottomNavP
     ))
 
   // "Mais" acende quando a rota atual NÃO é um dos destinos primários visíveis.
-  const onPrimary = items.some((it) => pathname === it.href || pathname.startsWith(it.href + '/'))
+  const pathOf = (href: string) => href.split('?')[0]
+  const onPrimary = items.some((it) => {
+    const itemPath = pathOf(it.href)
+    return pathname === itemPath || pathname.startsWith(itemPath + '/')
+  })
 
   return (
     <>
@@ -100,7 +104,8 @@ export default function MobileBottomNav({ allowedPaths, role }: MobileBottomNavP
         }}
       >
         {items.map((it) => {
-          const active = pathname === it.href || pathname.startsWith(it.href + '/')
+          const itemPath = pathOf(it.href)
+          const active = pathname === itemPath || pathname.startsWith(itemPath + '/')
           const Icon = it.icon
           return (
             <Link
