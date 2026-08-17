@@ -23,7 +23,7 @@ function getClient() {
 }
 
 // KV key: experiment:{type}:{entry_path}
-async function invalidateKV(entryPath: string, type: string) {
+async function invalidateKV(workspaceId: string, entryPath: string, type: string) {
   const token = process.env.CLOUDFLARE_API_TOKEN
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
   const kvNamespaceId = process.env.AB_KV_NAMESPACE_ID
@@ -32,12 +32,12 @@ async function invalidateKV(entryPath: string, type: string) {
   const base = `https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${kvNamespaceId}/values`
   const headers = { Authorization: `Bearer ${token}` }
 
-  await fetch(`${base}/${encodeURIComponent(`experiment:${type}:${entryPath}`)}`, { method: 'DELETE', headers }).catch(() => {})
+  await fetch(`${base}/${encodeURIComponent(`experiment:${workspaceId}:${type}:${entryPath}`)}`, { method: 'DELETE', headers }).catch(() => {})
 }
 
 // Sincroniza fallback_url no D1 local (redundância de borda).
 // Executado em background — nunca bloqueia a resposta ao cliente.
-async function syncD1Fallback(entryPath: string, type: string, fallbackUrl: string | null | undefined) {
+async function syncD1Fallback(workspaceId: string, entryPath: string, type: string, fallbackUrl: string | null | undefined) {
   if (!fallbackUrl) return
   const token = process.env.CLOUDFLARE_API_TOKEN
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
@@ -51,7 +51,7 @@ async function syncD1Fallback(entryPath: string, type: string, fallbackUrl: stri
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sql: 'INSERT OR REPLACE INTO rotas (path, type, fallback_url) VALUES (?, ?, ?)',
-        params: [entryPath, type, fallbackUrl],
+        params: [`${workspaceId}:${entryPath}`, type, fallbackUrl],
       }),
     }
   ).catch(() => {})
@@ -203,8 +203,8 @@ export async function POST(req: NextRequest) {
 
   if (status === 'active') {
     await Promise.all([
-      invalidateKV(entry_path, type),
-      syncD1Fallback(entry_path, type, fallback_url),
+      invalidateKV(workspaceId, entry_path, type),
+      syncD1Fallback(workspaceId, entry_path, type, fallback_url),
     ])
   }
 
@@ -273,7 +273,7 @@ export async function PATCH(req: NextRequest) {
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    await invalidateKV(data.entry_path, data.type ?? 'ob')
+    await invalidateKV(workspaceId, data.entry_path, data.type ?? 'ob')
     return NextResponse.json(data)
   }
 
@@ -332,8 +332,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     await Promise.all([
-      invalidateKV(data.entry_path, data.type ?? 'page'),
-      syncD1Fallback(data.entry_path, data.type ?? 'page', data.fallback_url),
+      invalidateKV(workspaceId, data.entry_path, data.type ?? 'page'),
+      syncD1Fallback(workspaceId, data.entry_path, data.type ?? 'page', data.fallback_url),
     ])
     return NextResponse.json(data)
   }
@@ -384,8 +384,8 @@ export async function PATCH(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await Promise.all([
-    invalidateKV(data.entry_path, data.type ?? 'page'),
-    syncD1Fallback(data.entry_path, data.type ?? 'page', data.fallback_url),
+    invalidateKV(workspaceId, data.entry_path, data.type ?? 'page'),
+    syncD1Fallback(workspaceId, data.entry_path, data.type ?? 'page', data.fallback_url),
   ])
 
   return NextResponse.json(data)

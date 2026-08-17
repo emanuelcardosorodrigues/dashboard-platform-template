@@ -15,6 +15,7 @@ import {
 import { PROVIDER_FIELDS } from '@/lib/integrations/providers'
 import { credentialsEncryptionReady } from '@/lib/crypto/secrets'
 import { createClient } from '@supabase/supabase-js'
+import { normalizeAbEntryBase } from '@/lib/abEntryLink'
 
 function db() {
   return createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -66,11 +67,15 @@ export async function updateWorkspaceAction(formData: FormData): Promise<void> {
   const workspaceId = String(formData.get('workspace_id') || '')
   const nome = String(formData.get('nome') || '').trim().slice(0, 120)
   const logoUrl = String(formData.get('logo_url') || '').trim().slice(0, 500)
+  const abEntryBaseRaw = String(formData.get('ab_entry_base') || '').trim()
+  const abEntryBase = normalizeAbEntryBase(abEntryBaseRaw)
   if (!workspaceId || !nome) redirect('/admin/projetos')
+  if (abEntryBaseRaw && !abEntryBase) redirect(`/admin/projetos/${workspaceId}?erro=link_ab_invalido`)
   const patch: Record<string, unknown> = { nome, updated_at: new Date().toISOString() }
   patch.logo_url = logoUrl || null
+  patch.ab_entry_base = abEntryBase
   const { error } = await db().from('workspaces').update(patch).eq('id', workspaceId)
-  if (error && /column .* logo_url/i.test(error.message)) {
+  if (error && /column .* (logo_url|ab_entry_base)/i.test(error.message)) {
     await db().from('workspaces').update({ nome }).eq('id', workspaceId) // logo_url ainda não migrado
   }
   await audit({ action: 'admin.workspace.update', actorRole: 'admin', actorLabel: me.user_id, resource: workspaceId }).catch(() => {})

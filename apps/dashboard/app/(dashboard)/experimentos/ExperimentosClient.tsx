@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import {
@@ -39,10 +39,10 @@ import { zTest, requiredSampleSize, sequentialPocock } from '@/lib/stats'
 import { connectRateDisplay, CONNECT_RATE_MIN_CLICKS } from '@/lib/experimentPassthrough'
 import { formatCurrency, formatDateBR } from '@/lib/formatters'
 import { useIsMobile } from '@/lib/hooks/useMediaQuery'
+import { DEFAULT_AB_ENTRY_BASE, experimentEntryUrl } from '@/lib/abEntryLink'
 
-// Domínio base das URLs de entrada do Worker A/B.
-// Configure NEXT_PUBLIC_ENTRY_BASE no .env.local (ex: seudominio.com.br/r).
-const ENTRY_BASE = (process.env.NEXT_PUBLIC_ENTRY_BASE ?? 'seudominio.com.br/r').trim()
+const EntryBaseContext = createContext(DEFAULT_AB_ENTRY_BASE)
+const useEntryBase = () => useContext(EntryBaseContext)
 
 interface VariantStat {
   name: string
@@ -74,6 +74,7 @@ interface Props {
   orphanSales?: { sck_slug: string; count: number; receita: number }[]
   inactiveSlugs?: OrphanBucket[]
   neverTestedSlugs?: OrphanBucket[]
+  entryBase: string
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -209,7 +210,7 @@ const TYPE_CONFIG: Record<ExpType, {
     slugPlaceholder: 'ck-v1',
     urlLabel: 'URL Hotmart',
     urlPlaceholder: 'https://pay.hotmart.com/PRODUTO?off=OFERTA',
-    hint: `Testa ofertas diferentes no checkout. Link: ${ENTRY_BASE}/check/{id}`,
+    hint: 'Testa ofertas diferentes no checkout.',
   },
   ob: {
     label: 'Order Bump',
@@ -222,13 +223,6 @@ const TYPE_CONFIG: Record<ExpType, {
     urlPlaceholder: '',
     hint: 'Testa quais order bumps aparecem no checkout. Sem URL — controlado pelo Hotmart.',
   },
-}
-
-function universalLink(exp: SbExperiment): string {
-  if (exp.type === 'checkout') {
-    return `${ENTRY_BASE}/check/${exp.entry_path.slice(1)}`
-  }
-  return `${ENTRY_BASE}${exp.entry_path}`
 }
 
 // ── Editor de variantes (compartilhado entre criar e editar) ──────────────────
@@ -601,6 +595,7 @@ function StepBlock({ num, title, color, border, bg, items, note }: {
 }
 
 function ManualPage() {
+  const entryBase = useEntryBase()
   return (
     <div className="space-y-3">
       <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl px-4 py-3 flex gap-3">
@@ -628,8 +623,8 @@ function ManualPage() {
       <StepBlock num={2} title="Configure o anúncio para apontar para o Worker"
         color="text-cyan-400" border="border-cyan-500/30" bg="bg-cyan-500/10"
         items={[
-          `O link do anúncio deve ser: ${ENTRY_BASE}/SEU-SLUG`,
-          `Ex: ${ENTRY_BASE}/seu-slug`,
+          `O link do anúncio deve ser: ${entryBase}/SEU-SLUG`,
+          `Ex: ${entryBase}/seu-slug`,
           'NUNCA aponte o anúncio direto para a LP — sempre pelo Worker',
           'O Worker redireciona o visitante para a variante sorteada automaticamente',
         ]}
@@ -662,7 +657,7 @@ function ManualPage() {
       <StepBlock num={5} title="Teste e valide"
         color="text-emerald-400" border="border-emerald-500/30" bg="bg-emerald-500/10"
         items={[
-          `Abra uma aba anônima → acesse ${ENTRY_BASE}/SEU-SLUG`,
+          `Abra uma aba anônima → acesse ${entryBase}/SEU-SLUG`,
           'Você deve cair em uma das variantes',
           'Feche e abra outra aba anônima para ter chance de cair na outra variante',
           'Cada sessão nova tem probabilidade igual de cair em qualquer variante',
@@ -675,6 +670,7 @@ function ManualPage() {
 }
 
 function ManualCheckout() {
+  const entryBase = useEntryBase()
   return (
     <div className="space-y-3">
       <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl px-4 py-3 flex gap-3">
@@ -701,8 +697,8 @@ function ManualCheckout() {
       <StepBlock num={2} title="Configure o botão da Landing Page"
         color="text-violet-400" border="border-violet-500/30" bg="bg-violet-500/10"
         items={[
-          `O link do botão de compra deve apontar para: ${ENTRY_BASE}/check/SEU-SLUG`,
-          `Ex: ${ENTRY_BASE}/check/seu-slug`,
+          `O link do botão de compra deve apontar para: ${entryBase}/check/SEU-SLUG`,
+          `Ex: ${entryBase}/check/seu-slug`,
           'O Worker sorteia a variante e redireciona para a URL da Hotmart automaticamente',
           'Se o visitante já passou pela página com ?ck= na URL, o Worker respeita esse sorteio',
         ]}
@@ -712,7 +708,7 @@ function ManualCheckout() {
       <StepBlock num={3} title="Teste e valide"
         color="text-emerald-400" border="border-emerald-500/30" bg="bg-emerald-500/10"
         items={[
-          `Abra uma aba anônima → acesse ${ENTRY_BASE}/check/SEU-SLUG`,
+          `Abra uma aba anônima → acesse ${entryBase}/check/SEU-SLUG`,
           'Você deve cair em uma das URLs da Hotmart',
           'Feche e abra outra aba anônima para ter chance de cair na outra variante',
           'Cada sessão nova tem probabilidade igual de cair em qualquer variante',
@@ -724,6 +720,7 @@ function ManualCheckout() {
 }
 
 function ManualOB() {
+  const entryBase = useEntryBase()
   return (
     <div className="space-y-3">
       <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 flex gap-3">
@@ -802,7 +799,7 @@ function ManualOB() {
       <StepBlock num={4} title="Regra de ouro dos slugs"
         color="text-cyan-400" border="border-cyan-500/30" bg="bg-cyan-500/10"
         items={[
-          `Página → slug livre, ex: meu-slug (link do anúncio: ${ENTRY_BASE}/meu-slug)`,
+          `Página → slug livre, ex: meu-slug (link do anúncio: ${entryBase}/meu-slug)`,
           'Checkout → slug do funil, ex: col (link do botão: tab.../check/col)',
           'Order Bump → MESMO slug do Checkout, ex: col',
           'Checkout e OB são os "gêmeos" — sempre o mesmo slug',
@@ -813,7 +810,7 @@ function ManualOB() {
       <StepBlock num={5} title="Teste e valide"
         color="text-emerald-400" border="border-emerald-500/30" bg="bg-emerald-500/10"
         items={[
-          `Abra uma aba anônima → acesse ${ENTRY_BASE}/check/SEU-SLUG`,
+          `Abra uma aba anônima → acesse ${entryBase}/check/SEU-SLUG`,
           'Observe para qual URL da Hotmart você foi redirecionado',
           'Confira na Matriz se esse link corresponde à combinação correta',
           'Feche e abra nova aba anônima para testar outra combinação',
@@ -826,6 +823,7 @@ function ManualOB() {
 }
 
 function ManualVTURB() {
+  const entryBase = useEntryBase()
   return (
     <div className="space-y-3">
       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 flex gap-3">
@@ -839,7 +837,7 @@ function ManualVTURB() {
         color="text-emerald-400" border="border-emerald-500/30" bg="bg-emerald-500/10"
         items={[
           'No painel VTURB, abra o vídeo → Botão de ação → Editar',
-          `URL do botão: ${ENTRY_BASE}/check/SEU-SLUG`,
+          `URL do botão: ${entryBase}/check/SEU-SLUG`,
           'IMPORTANTE: desmarque "Abrir link em nova guia" — deve redirecionar a página',
           'Salve o botão',
         ]}
@@ -967,6 +965,7 @@ function EditExperimentModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const entryBase = useEntryBase()
   const [name, setName] = useState(exp.name)
   const [variants, setVariants] = useState<VariantDraft[]>(
     exp.variants.map((v, i) => ({ id: i, name: v.name, slug: v.slug, url: v.url ?? '', weight: v.weight, enabled: v.enabled !== false }))
@@ -1086,8 +1085,8 @@ function EditExperimentModal({
             </span>
             <span className="text-[10px] font-mono text-gray-500">
               {exp.type === 'checkout'
-                ? `${ENTRY_BASE}/check/${exp.entry_path.slice(1)}`
-                : `${ENTRY_BASE}${exp.entry_path}`}
+                ? `${entryBase}/check/${exp.entry_path.slice(1)}`
+                : `${entryBase}${exp.entry_path}`}
             </span>
             <span className={clsx('text-[10px] font-medium px-2 py-0.5 rounded-full ml-auto', STATUS_COLOR[exp.status])}>
               {STATUS_LABEL[exp.status]}
@@ -1298,6 +1297,7 @@ function NovoExperimentoModal({
   onCreated: () => void
   experiments: SbExperiment[]
 }) {
+  const entryBase = useEntryBase()
   const [name, setName] = useState('')
   const [type, setType] = useState<ExpType>('page')
   const [entrySlug, setEntrySlug] = useState('')
@@ -1518,7 +1518,7 @@ function NovoExperimentoModal({
                     <p className="text-[10px] text-yellow-500">Nenhum checkout ativo encontrado. Ative um experimento de checkout primeiro.</p>
                   )}
                   {entrySlug && (
-                    <p className="text-[10px] text-gray-400 font-mono">{ENTRY_BASE}/{entrySlug}</p>
+                    <p className="text-[10px] text-gray-400 font-mono">{entryBase}/{entrySlug}</p>
                   )}
                 </>
               )
@@ -1535,8 +1535,8 @@ function NovoExperimentoModal({
                 </div>
                 <p className="text-[10px] text-gray-400">
                   {type === 'checkout'
-                    ? `${ENTRY_BASE}/check/${entrySlug || '...'}`
-                    : `${ENTRY_BASE}${entryPath}`}
+                    ? `${entryBase}/check/${entrySlug || '...'}`
+                    : `${entryBase}${entryPath}`}
                 </p>
               </>
             )}
@@ -2353,6 +2353,7 @@ function ExperimentRow({
   onUpdated: () => void
   allExps: SbExperiment[]
 }) {
+  const entryBase = useEntryBase()
   const [expanded, setExpanded] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [showMatrix, setShowMatrix] = useState(false)
@@ -2399,13 +2400,13 @@ function ExperimentRow({
           <div className="flex items-center gap-1.5 mt-0.5">
             <p className="text-[11px] text-gray-500 font-mono">
               {exp.type === 'checkout'
-                ? `${ENTRY_BASE}/check/${exp.entry_path.slice(1)}`
-                : `${ENTRY_BASE}${exp.entry_path}`}
+                ? `${entryBase}/check/${exp.entry_path.slice(1)}`
+                : `${entryBase}${exp.entry_path}`}
             </p>
             <CopyButton
               text={exp.type === 'checkout'
-                ? `https://${ENTRY_BASE}/check/${exp.entry_path.slice(1)}`
-                : `https://${ENTRY_BASE}${exp.entry_path}`}
+                ? experimentEntryUrl(entryBase, exp.type, exp.entry_path)
+                : experimentEntryUrl(entryBase, exp.type, exp.entry_path)}
               label="copiar"
             />
           </div>
@@ -2581,7 +2582,7 @@ function ExperimentRow({
                         </button>
                       </div>
                       {exp.type === 'checkout' && (
-                        <CopyButton text={`https://${universalLink(exp)}`} label="link universal" />
+                        <CopyButton text={experimentEntryUrl(entryBase, exp.type, exp.entry_path)} label="link universal" />
                       )}
                     </div>
 
@@ -3098,14 +3099,15 @@ function ExperimentStateCard({
   exp: SbExperiment
   stats: ExperimentStats
 } & Omit<ExperimentsTableProps, 'exps' | 'statsMap'>) {
+  const entryBase = useEntryBase()
   const [showNumbers, setShowNumbers] = useState(false)
   const st = deriveExperimentState(exp, stats)
   const tone = EXP_STATE_TONE[st.tone]
   const StateIcon = EXP_STATE_ICON[st.kind]
   const typeBadge = TYPE_BADGE[exp.type ?? 'page']
   const path = exp.type === 'checkout'
-    ? `${ENTRY_BASE}/check/${exp.entry_path.slice(1)}`
-    : `${ENTRY_BASE}${exp.entry_path}`
+    ? `${entryBase}/check/${exp.entry_path.slice(1)}`
+    : `${entryBase}${exp.entry_path}`
 
   return (
     <div className="bg-[#111827] border border-[#1F2937] rounded-xl p-4 space-y-3">
@@ -3484,6 +3486,7 @@ export default function ExperimentosClient({
   orphanSales = [],
   inactiveSlugs = [],
   neverTestedSlugs = [],
+  entryBase,
 }: Props) {
   const router = useRouter()
   const [showModal, setShowModal] = useState(false)
@@ -3543,6 +3546,7 @@ export default function ExperimentosClient({
   }
 
   return (
+    <EntryBaseContext.Provider value={entryBase}>
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
@@ -3708,5 +3712,6 @@ export default function ExperimentosClient({
         />
       )}
     </div>
+    </EntryBaseContext.Provider>
   )
 }

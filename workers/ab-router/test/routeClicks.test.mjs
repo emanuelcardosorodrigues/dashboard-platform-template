@@ -18,13 +18,35 @@ const EXPERIMENT = {
 
 function makeKV() {
   const store = new Map()
-  store.set('experiment:page:/col', JSON.stringify(EXPERIMENT))
+  store.set('workspace-host:example.com', 'ws-example')
+  store.set('experiment:ws-example:page:/col', JSON.stringify(EXPERIMENT))
   return {
     store,
     async get(k) { return store.has(k) ? store.get(k) : null },
     async put(k, v) { store.set(k, v) },
   }
 }
+
+test('domínios diferentes com o mesmo slug usam somente o experimento do próprio projeto', async () => {
+  const kv = makeKV()
+  kv.store.set('workspace-host:thiagomagalhaes.com.br', 'ws-thiago')
+  kv.store.set('experiment:ws-thiago:page:/col', JSON.stringify({
+    ...EXPERIMENT,
+    id: 'exp-thiago-col',
+    variants: [{ name: 'A', slug: 'thm-col-a', url: 'https://thiagomagalhaes.com.br/col-a/', weight: 1 }],
+  }))
+
+  await withFetchCapture(async () => {
+    const ctx = makeCtx()
+    const res = await worker.fetch(
+      makeRequest({ url: 'https://thiagomagalhaes.com.br/r/col', cookie: 'uid=thiago-1' }),
+      makeEnv('beacon', kv),
+      ctx,
+    )
+    assert.equal(res.status, 302)
+    assert.equal(res.headers.get('location'), 'https://thiagomagalhaes.com.br/col-a/?pv=thm-col-a&_abp=col')
+  })
+})
 
 function makeEnv(mode, kv) {
   return { IMPRESSION_MODE: mode, AB_KV: kv, SUPABASE_URL: 'https://fake.supabase.co', SUPABASE_KEY: 'fake-key' }

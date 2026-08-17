@@ -1,8 +1,9 @@
-import { EXPERIMENTS, resolveIdentity, detectBot, assignVariant, isBotUA, isUtmBot, buildUidCookie, addPerfHeaders, getBanditVariants, murmurhash3 } from './ab.js';
+import { resolveIdentity, detectBot, assignVariant, isBotUA, isUtmBot, buildUidCookie, addPerfHeaders, getBanditVariants, murmurhash3 } from './ab.js';
 
 // Cache em memória: evita reads repetidos ao KV dentro do mesmo isolate.
 // Sobrevive enquanto o isolate estiver aquecido (dezenas de requests).
-// Estrutura: kvKey → { data, expires }
+// Estrutura: kvKey → { data, expires }. As chaves incluem workspace: dois
+// projetos podem usar o mesmo slug sem vazar experimento entre domínios.
 const MEM_CACHE = new Map();
 const MEM_TTL_MS = 300_000; // 5 min — alinhado com o TTL do KV
 const KV_TTL_S  = 300;      // 5 min — reduz writes de 1.440/dia para ~288/dia por path
@@ -13,8 +14,44 @@ const KV_TTL_S  = 300;      // 5 min — reduz writes de 1.440/dia para ~288/dia
 // O argumento opcional `cacheRef` é um objeto mutável usado pra rastrear o
 // pior caso de cache hit dentro de um request — se qualquer chamada bater
 // no Supabase (MISS), o handler top-level marca a resposta como X-Cache: MISS.
-async function getExperimentByType(pathname, type, env, cacheRef) {
-  const kvKey = `experiment:${type}:${pathname}`;
+async function resolveWorkspaceId(hostname, env) {
+  const host = hostname.toLowerCase();
+  const kvKey = `workspace-host:${host}`;
+  const mem = MEM_CACHE.get(kvKey);
+  if (mem && mem.expires > Date.now()) return mem.data;
+
+  if (env.AB_KV) {
+    try {
+      const cached = await env.AB_KV.get(kvKey);
+      if (cached) {
+        MEM_CACHE.set(kvKey, { data: cached, expires: Date.now() + MEM_TTL_MS });
+        return cached;
+      }
+    } catch (_) {}
+  }
+
+  if (!env.SUPABASE_URL || !env.SUPABASE_KEY) return null;
+  try {
+    // ab_entry_base é canônico: "cliente.com.br/r". A rota do Worker recebe
+    // sempre /r/*, portanto o host identifica inequivocamente o projeto.
+    const base = `${host}/r`;
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/workspaces?select=id&ab_entry_base=eq.${encodeURIComponent(base)}&limit=1`,
+      { headers: { apikey: env.SUPABASE_KEY, Authorization: `Bearer ${env.SUPABASE_KEY}` } },
+    );
+    const rows = await res.json();
+    const id = Array.isArray(rows) ? rows[0]?.id : null;
+    if (!id) return null;
+    MEM_CACHE.set(kvKey, { data: id, expires: Date.now() + MEM_TTL_MS });
+    if (env.AB_KV) env.AB_KV.put(kvKey, id, { expirationTtl: KV_TTL_S }).catch(() => {});
+    return id;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function getExperimentByType(pathname, type, workspaceId, env, cacheRef) {
+  const kvKey = `experiment:${workspaceId}:${type}:${pathname}`;
 
   // Camada 0 — memória (sem I/O, gratuito)
   const mem = MEM_CACHE.get(kvKey);
@@ -39,7 +76,7 @@ async function getExperimentByType(pathname, type, env, cacheRef) {
   if (env.SUPABASE_URL && env.SUPABASE_KEY) {
     try {
       const res = await fetch(
-        `${env.SUPABASE_URL}/rest/v1/experiments?entry_path=eq.${encodeURIComponent(pathname)}&type=eq.${type}&status=eq.active&limit=1`,
+        `${env.SUPABASE_URL}/rest/v1/experiments?workspace_id=eq.${encodeURIComponent(workspaceId)}&entry_path=eq.${encodeURIComponent(pathname)}&type=eq.${type}&status=eq.active&limit=1`,
         { headers: { apikey: env.SUPABASE_KEY, Authorization: `Bearer ${env.SUPABASE_KEY}` } }
       );
       const rows = await res.json();
@@ -53,7 +90,7 @@ async function getExperimentByType(pathname, type, env, cacheRef) {
         if (exp.fallback_url && env.DB) {
           env.DB
             .prepare('INSERT OR REPLACE INTO rotas (path, type, fallback_url) VALUES (?, ?, ?)')
-            .bind(pathname, type, exp.fallback_url)
+            .bind(`${workspaceId}:${pathname}`, type, exp.fallback_url)
             .run()
             .catch(() => {});
         }
@@ -62,8 +99,6 @@ async function getExperimentByType(pathname, type, env, cacheRef) {
     } catch (_) {}
   }
 
-  // Fallback hardcoded apenas para page
-  if (type === 'page') return EXPERIMENTS[pathname] ?? null;
   return null;
 }
 
@@ -103,12 +138,12 @@ function isWithinSchedule(exp) {
 //   2. D1 local — última fallback_url vista para este path (persiste mesmo sem Supabase)
 // Sem EMERGENCY_URL global: o fallback de emergência é sempre o último configurado
 // no próprio experimento, gravado no D1 a cada fetch bem-sucedido do Supabase.
-async function getFallbackUrl(pathname, type, env) {
+async function getFallbackUrl(pathname, type, workspaceId, env) {
   // Camada 1 — Supabase
   if (env.SUPABASE_URL && env.SUPABASE_KEY) {
     try {
       const res = await fetch(
-        `${env.SUPABASE_URL}/rest/v1/experiments?entry_path=eq.${encodeURIComponent(pathname)}&type=eq.${type}&order=created_at.desc&limit=1&select=fallback_url`,
+        `${env.SUPABASE_URL}/rest/v1/experiments?workspace_id=eq.${encodeURIComponent(workspaceId)}&entry_path=eq.${encodeURIComponent(pathname)}&type=eq.${type}&order=created_at.desc&limit=1&select=fallback_url`,
         { headers: { apikey: env.SUPABASE_KEY, Authorization: `Bearer ${env.SUPABASE_KEY}` } }
       );
       const rows = await res.json();
@@ -122,7 +157,7 @@ async function getFallbackUrl(pathname, type, env) {
     try {
       const row = await env.DB
         .prepare('SELECT fallback_url FROM rotas WHERE path = ? AND type = ? LIMIT 1')
-        .bind(pathname, type)
+        .bind(`${workspaceId}:${pathname}`, type)
         .first();
       if (row?.fallback_url) return row.fallback_url;
     } catch (_) {}
@@ -142,26 +177,33 @@ export default {
       return handleProbe(request, env);
     }
 
+    const workspaceId = await resolveWorkspaceId(url.hostname, env);
+    if (!workspaceId) {
+      return new Response('Domínio A/B não configurado em nenhum projeto.', {
+        status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      });
+    }
+
     if (pathname === '/assign') {
-      return handleAssign(request, env);
+      return handleAssign(request, workspaceId, env);
     }
 
     if (pathname === '/i') {
-      return handleImpression(request, env, ctx);
+      return handleImpression(request, workspaceId, env, ctx);
     }
 
     if (pathname.startsWith('/check/')) {
-      return handleCheckout(pathname, request, env, ctx);
+      return handleCheckout(pathname, request, workspaceId, env, ctx);
     }
 
-    return handlePage(pathname, request, env, ctx);
+    return handlePage(pathname, request, workspaceId, env, ctx);
   },
 };
 
 // ── Rota /assign — retorna {ck, ob} para o click interceptor ─────────────────
 // Chamada pelo script na LP antes de redirecionar para o checkout.
 // Permite que o SCK seja composto antes da navegação (útil para VTURB/iframe).
-async function handleAssign(request, env) {
+async function handleAssign(request, workspaceId, env) {
   const url = new URL(request.url);
   const slug = url.searchParams.get('slug') || '';
 
@@ -177,8 +219,8 @@ async function handleAssign(request, env) {
   const cacheRef = { miss: false };
 
   const [checkoutExp, obExp] = await Promise.all([
-    getExperimentByType(pagePath, 'checkout', env, cacheRef),
-    getExperimentByType(pagePath, 'ob', env, cacheRef),
+    getExperimentByType(pagePath, 'checkout', workspaceId, env, cacheRef),
+    getExperimentByType(pagePath, 'ob', workspaceId, env, cacheRef),
   ]);
 
   const result = {};
@@ -217,7 +259,7 @@ async function handleAssign(request, env) {
 // A variante é RECOMPUTADA pelo uid (mesmo hash determinístico do redirect), então
 // o endpoint não confia em nada que o cliente envie além do path (?p=slug).
 // Sempre responde 204 — beacon nunca mostra erro ao usuário.
-async function handleImpression(request, env, ctx) {
+async function handleImpression(request, workspaceId, env, ctx) {
   const url = new URL(request.url);
   const headers = { 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' };
   const ok = () => new Response(null, { status: 204, headers });
@@ -231,7 +273,7 @@ async function handleImpression(request, env, ctx) {
   if (isBotUA(request.headers.get('User-Agent') || '') || isUtmBot(url.searchParams)) return ok();
 
   const pathname = `/${slug}`;
-  const pageExp = await getExperimentByType(pathname, 'page', env);
+  const pageExp = await getExperimentByType(pathname, 'page', workspaceId, env);
   if (!pageExp || !isWithinSchedule(pageExp)) return ok();
 
   const { uid, ip_fp } = resolveIdentity(request);
@@ -272,31 +314,31 @@ async function handleImpression(request, env, ctx) {
 // Busca o experimento de página, depois checkout/ob (usando checkout_slug se
 // configurado), atribui variantes independentes por hash uid × experimentId,
 // e monta o redirect com ?ck= e ?ob= para que o chtml componha o slug composto.
-async function handlePage(pathname, request, env, ctx) {
+async function handlePage(pathname, request, workspaceId, env, ctx) {
   const url = new URL(request.url);
   const cacheRef = { miss: false };
 
   // Bloqueia bots antes de qualquer sorteio ou query ao banco.
   // Bots não recebem cookie, não são logados, e vão direto ao fallback.
   if (isBotUA(request.headers.get('User-Agent') || '') || isUtmBot(url.searchParams)) {
-    const fallback = await getFallbackUrl(pathname, 'page', env);
+    const fallback = await getFallbackUrl(pathname, 'page', workspaceId, env);
     if (fallback) return Response.redirect(fallback, 302);
     return new Response('OK', { status: 200 });
   }
 
   // Busca o experimento de página primeiro para ler checkout_slug se configurado
-  const pageExp = await getExperimentByType(pathname, 'page', env, cacheRef);
+  const pageExp = await getExperimentByType(pathname, 'page', workspaceId, env, cacheRef);
 
   // checkout_slug permite que uma página use o checkout de outro funil
   const checkoutPath = (pageExp && pageExp.checkout_slug) ? pageExp.checkout_slug : pathname;
 
   const [checkoutExp, obExp] = await Promise.all([
-    getExperimentByType(checkoutPath, 'checkout', env, cacheRef),
-    getExperimentByType(checkoutPath, 'ob', env, cacheRef),
+    getExperimentByType(checkoutPath, 'checkout', workspaceId, env, cacheRef),
+    getExperimentByType(checkoutPath, 'ob', workspaceId, env, cacheRef),
   ]);
 
   if (!pageExp || !isWithinSchedule(pageExp)) {
-    const fallback = pageExp?.fallback_url ?? await getFallbackUrl(pathname, 'page', env);
+    const fallback = pageExp?.fallback_url ?? await getFallbackUrl(pathname, 'page', workspaceId, env);
     if (fallback) {
       const fallbackDest = new URL(fallback);
       ensureTrailingSlash(fallbackDest, env.WP_DOMAIN);
@@ -404,7 +446,7 @@ async function handlePage(pathname, request, env, ctx) {
 // ── Rota de checkout (/check/:id) ─────────────────────────────────────────────
 // Busca o experimento de checkout pelo path da página (type=checkout, entry_path=/col).
 // Respeita o ?ck= que veio propagado pelo chtml — veredito já definido na entrada.
-async function handleCheckout(pathname, request, env, ctx) {
+async function handleCheckout(pathname, request, workspaceId, env, ctx) {
   const id = pathname.slice('/check/'.length); // ex: "col"
   const pagePathname = `/${id}`;               // ex: "/col"
 
@@ -413,18 +455,18 @@ async function handleCheckout(pathname, request, env, ctx) {
 
   // Bloqueia bots antes de qualquer sorteio ou query ao banco.
   if (isBotUA(request.headers.get('User-Agent') || '') || isUtmBot(incomingUrl.searchParams)) {
-    const fallback = await getFallbackUrl(pagePathname, 'checkout', env);
+    const fallback = await getFallbackUrl(pagePathname, 'checkout', workspaceId, env);
     if (fallback) return Response.redirect(fallback, 302);
     return new Response('OK', { status: 200 });
   }
 
   const [experiment, obExperiment] = await Promise.all([
-    getExperimentByType(pagePathname, 'checkout', env, cacheRef),
-    getExperimentByType(pagePathname, 'ob', env, cacheRef),
+    getExperimentByType(pagePathname, 'checkout', workspaceId, env, cacheRef),
+    getExperimentByType(pagePathname, 'ob', workspaceId, env, cacheRef),
   ]);
 
   if (!experiment || !isWithinSchedule(experiment)) {
-    const fallback = experiment?.fallback_url ?? await getFallbackUrl(pagePathname, 'checkout', env);
+    const fallback = experiment?.fallback_url ?? await getFallbackUrl(pagePathname, 'checkout', workspaceId, env);
     if (fallback) {
       const fallbackDest = new URL(fallback);
       forwardParams(incomingUrl, fallbackDest);

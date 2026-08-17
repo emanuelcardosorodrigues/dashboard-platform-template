@@ -18,7 +18,8 @@ const EXPERIMENT = {
 
 function makeKV() {
   const store = new Map()
-  store.set('experiment:page:/col', JSON.stringify(EXPERIMENT))
+  store.set('workspace-host:example.com', 'ws-example')
+  store.set('experiment:ws-example:page:/col', JSON.stringify(EXPERIMENT))
   return {
     store,
     async get(k) { return store.has(k) ? store.get(k) : null },

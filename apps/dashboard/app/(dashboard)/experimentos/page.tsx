@@ -9,22 +9,32 @@ import { todayBR, daysAgoBR } from '@/lib/formatters'
 import { buildHitCidsBySlug, buildHitUidsBySlug, buildGaUsersBySlug, buildUidsByExpVariant, variantHitCids, variantGaUsers, resolveVariantCheckout, resolveConnectRate, type CheckoutFonte } from '@/lib/experimentPassthrough'
 import ExperimentosClient from './ExperimentosClient'
 import type { SbExperiment } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+import { getActiveWorkspaceId } from '@/lib/workspace-context'
+import { entryBaseForWorkspace } from '@/lib/abEntryLink'
 
 export default async function ExperimentosPage({ searchParams }: { searchParams: Promise<{ de?: string; ate?: string }> }) {
   const { de = '', ate = '' } = await searchParams
+  const workspaceId = await getActiveWorkspaceId()
+  const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } })
+  const { data: workspace } = await db.from('workspaces').select('ab_entry_base').eq('id', workspaceId).maybeSingle()
+  const entryBase = entryBaseForWorkspace(
+    (workspace as { ab_entry_base?: string | null } | null)?.ab_entry_base,
+    process.env.NEXT_PUBLIC_ENTRY_BASE,
+  )
   return (
     <div className="flex flex-col h-full">
-      <Header title="Experimentos" subtitle={`Motor A/B testing — ${process.env.NEXT_PUBLIC_ENTRY_BASE ?? 'seudominio.com.br/r'}`} />
+      <Header title="Experimentos" subtitle={`Motor A/B testing — ${entryBase}`} />
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <Suspense fallback={<div className="bg-[#111827] border border-[#1F2937] rounded-xl h-64 animate-pulse" />}>
-          <ExperimentosContent de={de} ate={ate} />
+          <ExperimentosContent de={de} ate={ate} entryBase={entryBase} />
         </Suspense>
       </div>
     </div>
   )
 }
 
-async function ExperimentosContent({ de, ate }: { de: string; ate: string }) {
+async function ExperimentosContent({ de, ate, entryBase }: { de: string; ate: string; entryBase: string }) {
   // Filtro de data único pra toda a aba (params de/ate do header). Vazio = tudo.
   // Janela dos cliques de checkout (tag GTM) e dos usuários GA4 que os denominam.
   // Precisa ser a MESMA nos dois — senão a passagem divide populações de períodos
@@ -264,6 +274,7 @@ async function ExperimentosContent({ de, ate }: { de: string; ate: string }) {
       orphanSales={orphanSales}
       inactiveSlugs={inactiveSlugs}
       neverTestedSlugs={neverTestedSlugs}
+      entryBase={entryBase}
     />
   )
 }

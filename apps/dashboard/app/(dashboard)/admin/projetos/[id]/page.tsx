@@ -39,6 +39,7 @@ export default async function ProjetoCredenciaisPage({
     )
   }
   const logoUrl = (ws as { logo_url?: string | null }).logo_url ?? ''
+  const abEntryBase = (ws as { ab_entry_base?: string | null }).ab_entry_base ?? ''
   const configured = await listConfiguredProviders(id)
   const byProvider = new Map(configured.map((c) => [c.provider, c]))
 
@@ -108,6 +109,7 @@ export default async function ProjetoCredenciaisPage({
       {sp.removido && <Banner kind="warn">Credenciais de <b>{PROVIDER_LABEL[sp.removido as IntegrationProvider] ?? sp.removido}</b> removidas.</Banner>}
       {sp.erro === 'sem_master_key' && <Banner kind="err">Master key ausente (CREDENTIALS_MASTER_KEY). Não foi salvo.</Banner>}
       {sp.erro === 'vazio' && <Banner kind="err">Nenhum campo preenchido — nada foi salvo.</Banner>}
+      {sp.erro === 'link_ab_invalido' && <Banner kind="err">Link A/B inválido. Informe um domínio HTTPS com o sufixo <b>/r</b> (ex.: thiagomagalhaes.com.br/r).</Banner>}
       {sp.yt === 'ok' && <Banner kind="ok">Canal do YouTube conectado! O primeiro sync roda no próximo cron (ou dispare manual).</Banner>}
       {sp.yt_erro && <Banner kind="err">Conexão com YouTube falhou ({sp.yt_erro}). Tente de novo — se persistir, confira o OAuth app no Google Cloud.</Banner>}
       {sp.ig === 'ok' && <Banner kind="ok">{sp.n ?? '1'} conta(s) do Instagram conectada(s)! Use &quot;Sincronizar agora&quot; pra puxar os primeiros dados.</Banner>}
@@ -153,6 +155,12 @@ export default async function ProjetoCredenciaisPage({
           <span className="text-xs text-gray-400">URL do logo</span>
           <input name="logo_url" defaultValue={logoUrl} maxLength={500} placeholder="https://…/logo.png"
             className="mt-1 w-full rounded-md bg-[#0B1120] border border-[#1F2937] px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" />
+        </label>
+        <label className="flex-1 min-w-[220px]">
+          <span className="text-xs text-gray-400">Link base do teste A/B</span>
+          <input name="ab_entry_base" defaultValue={abEntryBase} maxLength={255} placeholder="thiagomagalhaes.com.br/r"
+            className="mt-1 w-full rounded-md bg-[#0B1120] border border-[#1F2937] px-3 py-2 text-sm text-white font-mono focus:border-blue-500 outline-none" />
+          <span className="mt-1 block text-[10px] text-gray-500">Usado somente neste projeto. O Worker precisa estar publicado nesta rota antes de ativar um teste.</span>
         </label>
         <button type="submit" className="rounded-md bg-white/10 hover:bg-white/15 border border-white/10 px-3 py-2 text-sm text-white">Salvar</button>
       </form>
