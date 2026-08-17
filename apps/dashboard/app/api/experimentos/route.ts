@@ -9,6 +9,7 @@ import {
   experimentoPatchSchema,
 } from '@/lib/validation/schemas'
 import { getActiveWorkspaceId } from '@/lib/workspace-context'
+import { edgeForWorkspace } from '@/lib/abEdge'
 import { diffVariants } from '@/lib/variantEvents'
 import { registrarEventos, variantesAtuais } from '@/lib/variantEventsDb'
 
@@ -22,33 +23,31 @@ function getClient() {
   )
 }
 
-// KV key: experiment:{type}:{entry_path}
+// KV key: experiment:{workspaceId}:{type}:{entry_path}
+// A borda é resolvida POR WORKSPACE (conta Cloudflare própria) — nunca escreve
+// no KV de outro projeto. Sem conta configurada, pula: o Worker converge pelo TTL.
 async function invalidateKV(workspaceId: string, entryPath: string, type: string) {
-  const token = process.env.CLOUDFLARE_API_TOKEN
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
-  const kvNamespaceId = process.env.AB_KV_NAMESPACE_ID
-  if (!token || !accountId || !kvNamespaceId) return
+  const edge = edgeForWorkspace(workspaceId)
+  if (!edge) return
 
-  const base = `https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${kvNamespaceId}/values`
-  const headers = { Authorization: `Bearer ${token}` }
+  const base = `https://api.cloudflare.com/client/v4/accounts/${edge.accountId}/storage/kv/namespaces/${edge.kvNamespaceId}/values`
+  const headers = { Authorization: `Bearer ${edge.apiToken}` }
 
   await fetch(`${base}/${encodeURIComponent(`experiment:${workspaceId}:${type}:${entryPath}`)}`, { method: 'DELETE', headers }).catch(() => {})
 }
 
-// Sincroniza fallback_url no D1 local (redundância de borda).
+// Sincroniza fallback_url no D1 local (redundância de borda), na conta DO workspace.
 // Executado em background — nunca bloqueia a resposta ao cliente.
 async function syncD1Fallback(workspaceId: string, entryPath: string, type: string, fallbackUrl: string | null | undefined) {
   if (!fallbackUrl) return
-  const token = process.env.CLOUDFLARE_API_TOKEN
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
-  const d1Id = process.env.D1_DATABASE_ID
-  if (!token || !accountId || !d1Id) return
+  const edge = edgeForWorkspace(workspaceId)
+  if (!edge || !edge.d1DatabaseId) return
 
   await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${d1Id}/query`,
+    `https://api.cloudflare.com/client/v4/accounts/${edge.accountId}/d1/database/${edge.d1DatabaseId}/query`,
     {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${edge.apiToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sql: 'INSERT OR REPLACE INTO rotas (path, type, fallback_url) VALUES (?, ?, ?)',
         params: [`${workspaceId}:${entryPath}`, type, fallbackUrl],
