@@ -139,10 +139,14 @@ export const backfillSckQuerySchema = z.object({
 export const hotmartWebhookSchema = z.object({
   event: z.string().min(1).max(120),
   data: z.object({
+    // `purchase` é OPCIONAL: eventos sem compra (PURCHASE_OUT_OF_SHOPPING_CART /
+    // "Abandono de carrinho", CLUB_FIRST_ACCESS / "Primeiro acesso", etc.) não
+    // trazem esse objeto. Exigi-lo dava 400 e a Hotmart re-tentava pra sempre —
+    // a rota só consome compra/estorno e ignora (200) o resto logo depois.
     purchase: z.object({
       transaction: z.union([z.string(), z.number()]).optional(),
       price: z.object({ value: z.union([z.string(), z.number()]).optional() }).passthrough().optional(),
-    }).passthrough(),
+    }).passthrough().optional(),
   }).passthrough(),
 }).passthrough()
 
